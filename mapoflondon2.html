@@ -1,0 +1,2911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Victorian London Map</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #map { width: 100%; height: 100vh; background: #eee; }
+
+    /* ===== POPUP MUST BE OPAQUE + ABOVE HOTSPOTS (NO BLEED-THROUGH) ===== */
+    .leaflet-popup,
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-content { overflow: visible !important; }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: #fff !important;
+    }
+
+    /* ===== OFFICIAL POPUP STYLE ===== */
+    .pp-popup {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.15em;
+      line-height: 1.6;
+      max-width: 700px;
+    }
+
+    .pp-title {
+      text-align: center;
+      margin-bottom: 0.5em;
+      font-weight: 700;
+      font-size: 1.1em;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .pp-popup p { margin: 0 0 0.75em 0; }
+
+    .pp-figure {
+      margin: 0.9em auto 0 auto;
+      max-width: 300px;
+      text-align: center;
+      position: relative;
+    }
+
+    .pp-figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      transition: transform 0.25s ease;
+      cursor: zoom-in;
+      position: relative;
+      z-index: 1;
+      transform-origin: center center;
+    }
+
+    .pp-figure img:hover { transform: scale(2.8); z-index: 10; }
+
+    @media (hover: none) {
+      .pp-figure img:hover { transform: none; z-index: 1; }
+      .pp-figure img { cursor: default; }
+    }
+
+    .pp-caption {
+      font-size: 0.85em;
+      color: #555;
+      margin-top: 0.35em;
+    }
+
+    /* ===== BUTTONS (Reset + Show Hotspots) ===== */
+    .pp-btn {
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.25);
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      user-select: none;
+      margin-bottom: 6px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .pp-btn:hover { background: #f6f6f6; }
+
+    .leaflet-control-attribution {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 12px;
+      opacity: 0.85;
+    }
+
+    /* ===== Popup link button (Old Bailey ⇄ Newgate) ===== */
+    .pp-linkbtn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 7px 10px;
+      border: 1px solid rgba(0,0,0,0.25);
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .pp-linkbtn:hover { background: #f6f6f6; }
+
+    .pp-linkbtn.consequence {
+      background: #f2f2f2;
+      border-color: rgba(0,0,0,0.35);
+    }
+    .pp-linkbtn.consequence:hover { background: #e9e9e9; }
+  
+    .pp-reference {
+        text-align: center;
+        font-size: 0.85em;
+        font-style: italic;
+        margin-top: -0.25em;
+        margin-bottom: 0.6em;
+        color: #555;
+    }
+
+</style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    /* ===== MAP SETUP ===== */
+    const imageUrl = 'mapoflondon-lowres.png';
+    const imageWidth = 11800;
+    const imageHeight = 13800;
+    const bounds = [[0, 0], [imageHeight, imageWidth]];
+
+    const map = L.map('map', {
+      crs: L.CRS.Simple,
+      minZoom: -5,
+      maxZoom: 2,
+      zoomSnap: 0.25
+    });
+
+    L.imageOverlay(imageUrl, bounds).addTo(map);
+    map.setMaxBounds(bounds);
+    map.fitBounds(bounds, { padding: [20, 20] });
+
+    const homeZoom = map.getBoundsZoom(bounds) - .25;
+    map.setZoom(homeZoom);
+    const homeCenter = map.getCenter();
+
+    map.attributionControl.setPrefix('');
+    map.attributionControl.addAttribution(
+      'Victorian London, c.1860 — commentary and interpretation by Corie'
+    );
+
+    /* ===== HOTSPOT PANE (KNOWN WORKING) ===== */
+    map.getPane('popupPane').style.zIndex = 9999;
+
+    map.createPane('hotspots');
+    const hp = map.getPane('hotspots');
+    hp.style.zIndex = 650;
+    hp.style.pointerEvents = 'auto';
+
+    const HOTSPOT_INVISIBLE = {
+      pane: 'hotspots',
+      color: '#1f3a44',
+      weight: 2,
+      opacity: 0.0,
+      fillColor: '#1f3a44',
+      fillOpacity: 0.0,
+      interactive: true
+};
+
+    const HOTSPOT_VISIBLE = {
+      pane: 'hotspots',
+      color: '#1f3a44',
+      weight: 2,
+      opacity: 0.95,
+      fillColor: '#1f3a44',
+      fillOpacity: 0.22,
+      interactive: true
+};
+
+    let hotspotsShown = false;
+    const allHotspots = [];
+
+    /* ===== NEIGHBORHOOD OVERLAY (80-grid) ===== */
+    map.createPane('neighborhoods');
+    const nb = map.getPane('neighborhoods');
+    nb.style.zIndex = 600;
+    nb.style.pointerEvents = 'auto';
+
+    const NEIGHBOR_INVISIBLE = {
+      pane: 'neighborhoods',
+      color: '#0b3d3f',
+      weight: 1,
+      opacity: 0.0,
+      fillColor: '#0b3d3f',
+      fillOpacity: 0.0,
+      interactive: true
+    };
+
+    const NEIGHBOR_VISIBLE = {
+      pane: 'neighborhoods',
+      color: '#0b3d3f',
+      weight: 1,
+      opacity: 0.65,
+      fillColor: '#0b3d3f',
+      fillOpacity: 0.05,
+      interactive: true
+    };
+
+    let neighborhoodsShown = false;
+    const allNeighborhoods = [];
+
+    function addNeighborhood({ points, name }) {
+      const layer = L.polygon(points, NEIGHBOR_INVISIBLE).addTo(map);
+      allNeighborhoods.push(layer);
+      if (name) {
+        layer.bindTooltip(name, { sticky: true, direction: 'top', opacity: 0.95 });
+      }
+      return layer;
+    }
+
+    addNeighborhood({
+      name: "Brent",
+      points: [
+        [13457.750000, 335.000000],
+        [13457.750000, 1174.000000],
+        [12114.500000, 1174.000000],
+        [12114.500000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Golders Green",
+      points: [
+        [13457.750000, 1174.000000],
+        [13457.750000, 2392.250000],
+        [12114.500000, 2392.250000],
+        [12114.500000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Hampstead Heath",
+      points: [
+        [13457.750000, 2392.250000],
+        [13457.750000, 3603.500000],
+        [12114.500000, 3603.500000],
+        [12114.500000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Highgate",
+      points: [
+        [13457.750000, 3603.500000],
+        [13457.750000, 4811.500000],
+        [12114.500000, 4811.500000],
+        [12114.500000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Hornsey (West)",
+      points: [
+        [13457.750000, 4811.500000],
+        [13457.750000, 5900.500000],
+        [12114.500000, 5900.500000],
+        [12114.500000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Hornsey (East)",
+      points: [
+        [13457.750000, 5900.500000],
+        [13457.750000, 7005.500000],
+        [12114.500000, 7005.500000],
+        [12114.500000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Clapton",
+      points: [
+        [13457.750000, 7005.500000],
+        [13457.750000, 8206.250000],
+        [12114.500000, 8206.250000],
+        [12114.500000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Leyton",
+      points: [
+        [13457.750000, 8206.250000],
+        [13457.750000, 9423.000000],
+        [12114.500000, 9423.000000],
+        [12114.500000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Walthamstow",
+      points: [
+        [13457.750000, 9423.000000],
+        [13457.750000, 10622.000000],
+        [12114.500000, 10622.000000],
+        [12114.500000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Epping",
+      points: [
+        [13457.750000, 10622.000000],
+        [13457.750000, 11466.500000],
+        [12114.500000, 11466.500000],
+        [12114.500000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Willesden",
+      points: [
+        [12114.500000, 335.000000],
+        [12114.500000, 1174.000000],
+        [10356.750000, 1174.000000],
+        [10356.750000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Kilburn",
+      points: [
+        [12114.500000, 1174.000000],
+        [12114.500000, 2392.250000],
+        [10356.750000, 2392.250000],
+        [10356.750000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Belsize",
+      points: [
+        [12114.500000, 2392.250000],
+        [12114.500000, 3603.500000],
+        [10356.750000, 3603.500000],
+        [10356.750000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Camden",
+      points: [
+        [12114.500000, 3603.500000],
+        [12114.500000, 4811.500000],
+        [10356.750000, 4811.500000],
+        [10356.750000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Islington",
+      points: [
+        [12114.500000, 4811.500000],
+        [12114.500000, 5900.500000],
+        [10356.750000, 5900.500000],
+        [10356.750000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Highbury",
+      points: [
+        [12114.500000, 5900.500000],
+        [12114.500000, 7005.500000],
+        [10356.750000, 7005.500000],
+        [10356.750000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Stoke Newington",
+      points: [
+        [12114.500000, 7005.500000],
+        [12114.500000, 8206.250000],
+        [10356.750000, 8206.250000],
+        [10356.750000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Homerton",
+      points: [
+        [12114.500000, 8206.250000],
+        [12114.500000, 9423.000000],
+        [10356.750000, 9423.000000],
+        [10356.750000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Hackney Marsh",
+      points: [
+        [12114.500000, 9423.000000],
+        [12114.500000, 10622.000000],
+        [10356.750000, 10622.000000],
+        [10356.750000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Stratford",
+      points: [
+        [12114.500000, 10622.000000],
+        [12114.500000, 11466.500000],
+        [10356.750000, 11466.500000],
+        [10356.750000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Kensal Green",
+      points: [
+        [10356.750000, 335.000000],
+        [10356.750000, 1174.000000],
+        [8579.750000, 1174.000000],
+        [8579.750000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Westbourne",
+      points: [
+        [10356.750000, 1174.000000],
+        [10356.750000, 2392.250000],
+        [8579.750000, 2392.250000],
+        [8579.750000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "St. John's Wood",
+      points: [
+        [10356.750000, 2392.250000],
+        [10356.750000, 3603.500000],
+        [8579.750000, 3603.500000],
+        [8579.750000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Regent\u2019s Park",
+      points: [
+        [10356.750000, 3603.500000],
+        [10356.750000, 4811.500000],
+        [8579.750000, 4811.500000],
+        [8579.750000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Bloomsbury",
+      points: [
+        [10356.750000, 4811.500000],
+        [10356.750000, 5900.500000],
+        [8579.750000, 5900.500000],
+        [8579.750000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Clerkenwell",
+      points: [
+        [10356.750000, 5900.500000],
+        [10356.750000, 7005.500000],
+        [8579.750000, 7005.500000],
+        [8579.750000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Spitalfields",
+      points: [
+        [10356.750000, 7005.500000],
+        [10356.750000, 8206.250000],
+        [8579.750000, 8206.250000],
+        [8579.750000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Mile End",
+      points: [
+        [10356.750000, 8206.250000],
+        [10356.750000, 9423.000000],
+        [8579.750000, 9423.000000],
+        [8579.750000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Bow",
+      points: [
+        [10356.750000, 9423.000000],
+        [10356.750000, 10622.000000],
+        [8579.750000, 10622.000000],
+        [8579.750000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "West Ham",
+      points: [
+        [10356.750000, 10622.000000],
+        [10356.750000, 11466.500000],
+        [8579.750000, 11466.500000],
+        [8579.750000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Shepherds Bush",
+      points: [
+        [8579.750000, 335.000000],
+        [8579.750000, 1174.000000],
+        [6920.500000, 1174.000000],
+        [6920.500000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Kensington",
+      points: [
+        [8579.750000, 1174.000000],
+        [8579.750000, 2392.250000],
+        [6920.500000, 2392.250000],
+        [6920.500000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Hyde Park",
+      points: [
+        [8579.750000, 2392.250000],
+        [8579.750000, 3603.500000],
+        [6920.500000, 3603.500000],
+        [6920.500000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Green Park",
+      points: [
+        [8579.750000, 3603.500000],
+        [8579.750000, 4811.500000],
+        [6920.500000, 4811.500000],
+        [6920.500000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Westminster",
+      points: [
+        [8579.750000, 4811.500000],
+        [8579.750000, 5900.500000],
+        [6920.500000, 5900.500000],
+        [6920.500000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Blackfriars",
+      points: [
+        [8579.750000, 5900.500000],
+        [8579.750000, 7005.500000],
+        [6920.500000, 7005.500000],
+        [6920.500000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Tower of London",
+      points: [
+        [8579.750000, 7005.500000],
+        [8579.750000, 8206.250000],
+        [6920.500000, 8206.250000],
+        [6920.500000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Rotherhithe",
+      points: [
+        [8579.750000, 8206.250000],
+        [8579.750000, 9423.000000],
+        [6920.500000, 9423.000000],
+        [6920.500000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Isle of Dogs",
+      points: [
+        [8579.750000, 9423.000000],
+        [8579.750000, 10622.000000],
+        [6920.500000, 10622.000000],
+        [6920.500000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Blackwall",
+      points: [
+        [8579.750000, 10622.000000],
+        [8579.750000, 11466.500000],
+        [6920.500000, 11466.500000],
+        [6920.500000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Fulham",
+      points: [
+        [6920.500000, 335.000000],
+        [6920.500000, 1174.000000],
+        [5280.750000, 1174.000000],
+        [5280.750000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Waltham Green",
+      points: [
+        [6920.500000, 1174.000000],
+        [6920.500000, 2392.250000],
+        [5280.750000, 2392.250000],
+        [5280.750000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Brompton",
+      points: [
+        [6920.500000, 2392.250000],
+        [6920.500000, 3603.500000],
+        [5280.750000, 3603.500000],
+        [5280.750000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Chelsea",
+      points: [
+        [6920.500000, 3603.500000],
+        [6920.500000, 4811.500000],
+        [5280.750000, 4811.500000],
+        [5280.750000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Kennington",
+      points: [
+        [6920.500000, 4811.500000],
+        [6920.500000, 5900.500000],
+        [5280.750000, 5900.500000],
+        [5280.750000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Walworth",
+      points: [
+        [6920.500000, 5900.500000],
+        [6920.500000, 7005.500000],
+        [5280.750000, 7005.500000],
+        [5280.750000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Peckam",
+      points: [
+        [6920.500000, 7005.500000],
+        [6920.500000, 8206.250000],
+        [5280.750000, 8206.250000],
+        [5280.750000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Deptford",
+      points: [
+        [6920.500000, 8206.250000],
+        [6920.500000, 9423.000000],
+        [5280.750000, 9423.000000],
+        [5280.750000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Greenwich",
+      points: [
+        [6920.500000, 9423.000000],
+        [6920.500000, 10622.000000],
+        [5280.750000, 10622.000000],
+        [5280.750000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Greenwich Park",
+      points: [
+        [6920.500000, 10622.000000],
+        [6920.500000, 11466.500000],
+        [5280.750000, 11466.500000],
+        [5280.750000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Putney",
+      points: [
+        [5280.750000, 335.000000],
+        [5280.750000, 1174.000000],
+        [3495.250000, 1174.000000],
+        [3495.250000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Wandsworth",
+      points: [
+        [5280.750000, 1174.000000],
+        [5280.750000, 2392.250000],
+        [3495.250000, 2392.250000],
+        [3495.250000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Wandworth Common",
+      points: [
+        [5280.750000, 2392.250000],
+        [5280.750000, 3603.500000],
+        [3495.250000, 3603.500000],
+        [3495.250000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Clapham",
+      points: [
+        [5280.750000, 3603.500000],
+        [5280.750000, 4811.500000],
+        [3495.250000, 4811.500000],
+        [3495.250000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Lambeth",
+      points: [
+        [5280.750000, 4811.500000],
+        [5280.750000, 5900.500000],
+        [3495.250000, 5900.500000],
+        [3495.250000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Herne Hill",
+      points: [
+        [5280.750000, 5900.500000],
+        [5280.750000, 7005.500000],
+        [3495.250000, 7005.500000],
+        [3495.250000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Peckham Rye",
+      points: [
+        [5280.750000, 7005.500000],
+        [5280.750000, 8206.250000],
+        [3495.250000, 8206.250000],
+        [3495.250000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Nunhead",
+      points: [
+        [5280.750000, 8206.250000],
+        [5280.750000, 9423.000000],
+        [3495.250000, 9423.000000],
+        [3495.250000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Lewisham",
+      points: [
+        [5280.750000, 9423.000000],
+        [5280.750000, 10622.000000],
+        [3495.250000, 10622.000000],
+        [3495.250000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Blackheath",
+      points: [
+        [5280.750000, 10622.000000],
+        [5280.750000, 11466.500000],
+        [3495.250000, 11466.500000],
+        [3495.250000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Putney Heath",
+      points: [
+        [3495.250000, 335.000000],
+        [3495.250000, 1174.000000],
+        [1725.750000, 1174.000000],
+        [1725.750000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Summerstown",
+      points: [
+        [3495.250000, 1174.000000],
+        [3495.250000, 2392.250000],
+        [1725.750000, 2392.250000],
+        [1725.750000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Tooting",
+      points: [
+        [3495.250000, 2392.250000],
+        [3495.250000, 3603.500000],
+        [1725.750000, 3603.500000],
+        [1725.750000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Balham",
+      points: [
+        [3495.250000, 3603.500000],
+        [3495.250000, 4811.500000],
+        [1725.750000, 4811.500000],
+        [1725.750000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Streatham",
+      points: [
+        [3495.250000, 4811.500000],
+        [3495.250000, 5900.500000],
+        [1725.750000, 5900.500000],
+        [1725.750000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Norwood",
+      points: [
+        [3495.250000, 5900.500000],
+        [3495.250000, 7005.500000],
+        [1725.750000, 7005.500000],
+        [1725.750000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Dulwich",
+      points: [
+        [3495.250000, 7005.500000],
+        [3495.250000, 8206.250000],
+        [1725.750000, 8206.250000],
+        [1725.750000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Forest Hill",
+      points: [
+        [3495.250000, 8206.250000],
+        [3495.250000, 9423.000000],
+        [1725.750000, 9423.000000],
+        [1725.750000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Catford",
+      points: [
+        [3495.250000, 9423.000000],
+        [3495.250000, 10622.000000],
+        [1725.750000, 10622.000000],
+        [1725.750000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Hither Green",
+      points: [
+        [3495.250000, 10622.000000],
+        [3495.250000, 11466.500000],
+        [1725.750000, 11466.500000],
+        [1725.750000, 10622.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Wimbledon",
+      points: [
+        [1725.750000, 335.000000],
+        [1725.750000, 1174.000000],
+        [346.500000, 1174.000000],
+        [346.500000, 335.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Merton",
+      points: [
+        [1725.750000, 1174.000000],
+        [1725.750000, 2392.250000],
+        [346.500000, 2392.250000],
+        [346.500000, 1174.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Mitcham",
+      points: [
+        [1725.750000, 2392.250000],
+        [1725.750000, 3603.500000],
+        [346.500000, 3603.500000],
+        [346.500000, 2392.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Mitcham East",
+      points: [
+        [1725.750000, 3603.500000],
+        [1725.750000, 4811.500000],
+        [346.500000, 4811.500000],
+        [346.500000, 3603.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Norbury",
+      points: [
+        [1725.750000, 4811.500000],
+        [1725.750000, 5900.500000],
+        [346.500000, 5900.500000],
+        [346.500000, 4811.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "South Norwood",
+      points: [
+        [1725.750000, 5900.500000],
+        [1725.750000, 7005.500000],
+        [346.500000, 7005.500000],
+        [346.500000, 5900.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Crystal Palace",
+      points: [
+        [1725.750000, 7005.500000],
+        [1725.750000, 8206.250000],
+        [346.500000, 8206.250000],
+        [346.500000, 7005.500000]
+      ]
+    });
+    addNeighborhood({
+      name: "Penge",
+      points: [
+        [1725.750000, 8206.250000],
+        [1725.750000, 9423.000000],
+        [346.500000, 9423.000000],
+        [346.500000, 8206.250000]
+      ]
+    });
+    addNeighborhood({
+      name: "Beckenham",
+      points: [
+        [1725.750000, 9423.000000],
+        [1725.750000, 10622.000000],
+        [346.500000, 10622.000000],
+        [346.500000, 9423.000000]
+      ]
+    });
+    addNeighborhood({
+      name: "Bromley",
+      points: [
+        [1725.750000, 10622.000000],
+        [1725.750000, 11466.500000],
+        [346.500000, 11466.500000],
+        [346.500000, 10622.000000]
+      ]
+    });
+
+
+    /* ===== POPUP BUILDER =====
+       NOTE: bodyHTML is injected as-is (NOT wrapped in <p>) to avoid weird formatting
+    */
+    function popupHTML({ title, reference, bodyHTML, imageSrc, captionHTML, imageMaxWidthPx = 300 }) {
+      return `
+        <div class="pp-popup">
+          <div class="pp-title">${title}</div>
+      ${reference ? `<div class="pp-reference">reference: ${reference}</div>` : ``}
+          ${bodyHTML ? `${bodyHTML}` : ``}
+          ${imageSrc ? `
+            <figure class="pp-figure" style="max-width:${imageMaxWidthPx}px;">
+              <img src="${imageSrc}" alt="">
+              ${captionHTML ? `<figcaption class="pp-caption">${captionHTML}</figcaption>` : ``}
+            </figure>
+          ` : ``}
+        </div>
+      `;
+    }
+
+    /* ===== HOTSPOT HELPER ===== */
+    function addHotspot({ points, title, reference, bodyHTML, imageSrc, captionHTML }) {
+      const layer = L.polygon(points, HOTSPOT_INVISIBLE).addTo(map);
+      allHotspots.push(layer);
+
+      layer.bindPopup(
+        popupHTML({ title, reference, bodyHTML, imageSrc, captionHTML, imageMaxWidthPx: 300 }),
+        { maxWidth: 750 }
+      );
+
+      layer.on('click', function() { this.openPopup(); });
+      return layer;
+    }
+
+    /* ===== CONTROLS: Reset + Show/Hide Hotspots ===== */
+    const ControlBox = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: function() {
+        const container = L.DomUtil.create('div');
+        L.DomEvent.disableClickPropagation(container);
+
+        const resetBtn = L.DomUtil.create('div', 'pp-btn', container);
+        resetBtn.innerHTML = 'Reset View';
+        L.DomEvent.on(resetBtn, 'click', () => map.setView(homeCenter, homeZoom));
+
+        const toggleBtn = L.DomUtil.create('div', 'pp-btn', container);
+        toggleBtn.innerHTML = 'Show Hotspots';
+        L.DomEvent.on(toggleBtn, 'click', () => {
+          hotspotsShown = !hotspotsShown;
+          for (const hs of allHotspots) {
+            hs.setStyle(hotspotsShown ? HOTSPOT_VISIBLE : HOTSPOT_INVISIBLE);
+          }
+          toggleBtn.innerHTML = hotspotsShown ? 'Hide Hotspots' : 'Show Hotspots';
+        });
+
+const nBtn = L.DomUtil.create('div', 'pp-btn', container);
+nBtn.innerHTML = 'See Neighborhood Overlay';
+L.DomEvent.on(nBtn, 'click', () => {
+  neighborhoodsShown = !neighborhoodsShown;
+  for (const nbLayer of allNeighborhoods) {
+    nbLayer.setStyle(neighborhoodsShown ? NEIGHBOR_VISIBLE : NEIGHBOR_INVISIBLE);
+  }
+  nBtn.innerHTML = neighborhoodsShown ? 'Hide Neighborhood Overlay' : 'See Neighborhood Overlay';
+});
+
+        return container;
+      }
+    });
+    map.addControl(new ControlBox());
+
+    /* =========================================================
+       HOTSPOTS (ALL SO FAR)
+       ========================================================= */
+
+    addHotspot({
+      points: [
+        [8839.000000, 7516.000000],
+        [8803.500000, 7514.500000],
+        [8812.000000, 7589.500000],
+        [8848.000000, 7590.000000]
+      ],
+      title: 'Jack the Ripper: Mary Jane Kelly (Victim #5)',
+      bodyHTML: `
+        <p>
+          On the morning of 9 November 1888, Mary Jane Kelly was found dead in her small room at Miller’s Court, off Dorset Street. Her murder is often treated as the final “canonical” Ripper killing—not only because it came last, but because it took place indoors, behind a closed door, in a space that should have offered the minimum shelter of privacy.
+        </p>
+        <p>
+          Miller’s Court sat within one of the most overcrowded districts of East London, a landscape of narrow passages, lodging houses, and rooms subdivided into near-inhabitable quarters. The court was reached through a passageway—semi-hidden, dense with proximity, and shaped by a constant churn of poverty and transience.
+        </p>
+        <p>
+          Kelly’s death exposed the cruel paradox of Victorian urban life: the poor were often most exposed not in public streets, but in the fragile private spaces they could barely afford. A room could be both sanctuary and trap.
+        </p>
+      `,
+      imageSrc: 'images/kelly.jpg',
+      captionHTML: ''
+    });
+
+    addHotspot({
+      points: [
+        [7468.220682, 5200.402714],
+        [7358.813628, 5198.024300],
+        [7324.326621, 5209.916371],
+        [7281.515165, 5221.808442],
+        [7261.298644, 5303.863733],
+        [7459.896232, 5324.080254]
+      ],
+      title: 'Houses of Parliament (Palace of Westminster)',
+      bodyHTML: `
+        <p>
+          Rebuilt after a catastrophic fire in 1834, the Houses of Parliament emerged in their Victorian form as a deliberate act of national self-definition. Designed by Charles Barry with interiors by Augustus Pugin, the new Palace of Westminster fused medieval Gothic style with modern governance, presenting Britain’s political authority as ancient, continuous, and morally rooted—even as it presided over rapid industrial and imperial change.
+        </p>
+        <p>
+          By 1860, Parliament stood as both working institution and symbolic architecture. Its towers, chambers, and ornamentation projected stability, tradition, and constitutional order at a moment when the social fabric of Britain was under strain. The Gothic Revival style was not nostalgic decoration but ideological statement: progress, Victorians insisted, need not abandon history.
+        </p>
+        <p>
+          Yet behind its carved stone and ritualized procedures, Parliament was also a site of exclusion. While laws governing labor, poverty, empire, and reform were debated within its walls, vast portions of the population—women, the working poor, colonial subjects—remained unrepresented. The building thus embodied a central Victorian contradiction: a faith in moral governance paired with sharply limited political voice.
+        </p>
+        <p>
+          For Victorian Londoners, the Houses of Parliament were not merely where power was exercised, but where it was performed—visible, theatrical, and meant to reassure a nation that order endured.
+        </p>
+      `,
+      imageSrc: 'images/parliamentfire.jpg',
+      captionHTML: `Anonymous, <span style="font-style: italic;">The Palace of Westminster from the River after the Fire of 1834</span>, c. 1834`
+    });
+
+    addHotspot({
+      points: [
+        [7858.177001, 5068.923591],
+        [7650.475586, 5096.673173],
+        [7652.998275, 5199.262536],
+        [7880.881204, 5158.899508]
+      ],
+      title: 'Whitehall',
+      bodyHTML: `
+        <p>
+          Whitehall was the administrative spine of Victorian government—the long corridor of offices and departments through which the everyday machinery of the state quietly moved. While Parliament performed power in public, Whitehall exercised it in paperwork: memoranda, dispatches, budgets, appointments, and files that translated political decisions into lived reality.
+        </p>
+        <p>
+          By 1860, Whitehall had become synonymous with professional bureaucracy. The Victorian state was expanding—regulating public health, policing, education, poverty, and empire—and its authority increasingly depended on permanent civil servants rather than individual ministers. The street’s buildings housed the institutional memory of government, where information was gathered, categorized, and acted upon.
+        </p>
+        <p>
+          Whitehall also embodied a particular kind of anonymity. Unlike palaces or monuments, its architecture was often sober, repetitive, and impersonal—appropriate to a mode of power that preferred to appear neutral, rational, and administrative. Yet the consequences of decisions made here were anything but abstract, reaching from London’s slums to colonial provinces thousands of miles away.
+        </p>
+        <p>
+          For Victorian Londoners, “Whitehall” was less a place than a concept: government as a continuous presence, operating behind doors, through procedures, and in the name of order.
+        </p>
+      `,
+      imageSrc: 'images/whitehall.jpg',
+      captionHTML: `Whitehall, looking towards Holbein Gateway, 1873`
+    });
+
+    addHotspot({
+      points: [
+        [1708.369983, 7568.870986],
+        [1357.645020, 7441.591765],
+        [1269.963779, 7625.439528],
+        [1637.659305, 7761.204030]
+      ],
+      title: 'Crystal Palace',
+      bodyHTML: `
+        <p>
+          First erected for the Great Exhibition of 1851, the Crystal Palace was a vast structure of iron and glass, designed to display the achievements of industry, science, and empire. When the exhibition closed, it was dismantled and rebuilt here at Sydenham, where it dominated the surrounding landscape.
+        </p>
+        <p>
+          Visitors wandered its courts as if through the future itself. By 1860, the Palace stood as both marvel and symbol: a faith that progress could be made visible, ordered, and enduring. Its destruction by fire in 1936 would later turn that confidence into memory—more vivid in absence than it ever was in use.
+        </p>
+      `,
+      imageSrc: 'images/crystalpalace.jpg',
+      captionHTML: `Achille-Louis Martinet, <span style="font-style: italic;">Crystal Palace, Sydenham</span>, c. 1862`
+    });
+
+    addHotspot({
+      points: [
+        [7878.497137, 5163.537293],
+        [7824.982817, 5183.753814],
+        [7863.037444, 5281.268798],
+        [7923.687007, 5269.376727]
+      ],
+      title: 'Scotland Yard',
+      bodyHTML: `
+        <p>
+          The name “Scotland Yard” refers not to a building, but to the headquarters of the Metropolitan Police, established in 1829 as the first modern, professional police force. By 1860, its offices at Whitehall Place had become the administrative center of a new idea: that crime could be managed through organization, record-keeping, and permanent oversight.
+        </p>
+        <p>
+          For Victorians, Scotland Yard represented reassurance and unease in equal measure. It promised order in a rapidly expanding city, yet quietly acknowledged how much disorder required watching. Its later fame would grow alongside the crimes it failed to prevent, becoming inseparable from the anxieties of modern urban life. It stood as proof that the city believed itself governable—so long as someone was always watching.
+        </p>
+      `,
+      imageSrc: 'images/scotlandyard.jpg',
+      captionHTML: ''
+    });
+
+    addHotspot({
+      points: [
+        [8980.297529, 4604.015346],
+        [8920.242570, 4645.637595],
+        [8957.702594, 4694.989690],
+        [9016.568346, 4655.151252]
+      ],
+      title: 'Strand Union Workhouse',
+      bodyHTML: `
+        <p>
+          Established under the Poor Law of 1834, the Strand Union Workhouse was one of many institutions designed to house the destitute of central London. Intended as a final refuge for those without income, family, or employment, it also functioned as a deterrent: life inside was deliberately harsh, governed by routine, separation, and labor.
+        </p>
+        <p>
+          By 1860, the workhouse stood as a quiet acknowledgment of Victorian limits. It reflected a belief that poverty was best managed through discipline rather than relief, and that suffering—carefully regulated—might encourage moral reform. For many who entered its doors, it offered shelter, but at the cost of autonomy, privacy, and dignity.
+        </p>
+        <p>
+          For those who passed through it, the workhouse enforced a vision of poverty not as a condition to be endured, but as a moral failure to be corrected.
+        </p>
+      `,
+      imageSrc: 'images/workhouse.jpg',
+      captionHTML: 'Inside a typical Victorian workhouse'
+    });
+
+    addHotspot({
+      points: [
+        [7139.657170, 5908.584264],
+        [7079.553093, 5941.818282],
+        [7003.892668, 6088.189386],
+        [7146.728237, 6151.121890],
+        [7206.832314, 6069.804610]
+      ],
+      title: 'Bethlehem Hospital (“Bedlam”)',
+      bodyHTML: `
+        <p>
+          Bethlehem Hospital, founded in the thirteenth century, was London’s principal institution for the confinement of the mentally ill. By the nineteenth century, the word “Bedlam” had entered common speech as a synonym for chaos—a reputation shaped as much by public imagination as by institutional practice.
+        </p>
+        <p>
+          In 1860, Bethlem (as it was also called) stood at a crossroads between cruelty and reform. Earlier centuries had treated madness as spectacle or moral failure; Victorian medicine sought instead to classify, diagnose, and manage it. Yet confinement remained central. Within its walls, distress was observed, recorded, and restrained, even as the boundary between illness and deviance remained uncertain.
+        </p>
+        <p>
+          Even as reform softened its methods, Bethlem remained a place where suffering was contained—and where the limits of understanding were quietly enforced.
+        </p>
+      `,
+      imageSrc: 'images/bedlam.jpg',
+      captionHTML: `From <span style="font-style: italic;">Walks through London</span> (1816)<br>William Hogarth, <span style="font-style: italic;">Scene in Bedlam</span>, from <span style="font-style: italic;">The Rake’s Progress</span> (1735)`
+    });
+
+    addHotspot({
+      points: [
+        [8722.618515, 2724.083937],
+        [8567.052679, 2855.263778],
+        [8615.404222, 2913.706079],
+        [8768.447370, 2781.264893]
+      ],
+      title: 'Paddington Station',
+      bodyHTML: `
+        <p>
+          Opened in 1854 and designed by Isambard Kingdom Brunel, Paddington Station was one of the great gateways of Victorian London—a place where the city met the wider world of industry, empire, and speed.
+        </p>
+        <p>
+          As the London terminus of the Great Western Railway, Paddington connected the capital to the west of England and South Wales, embodying Victorian confidence in engineering, progress, and movement. Its vast iron-and-glass train shed, revolutionary for its time, transformed travel into a modern, mechanized experience.
+        </p>
+        <p>
+          For Victorians, stations like Paddington were not merely functional spaces but symbols of a new age: where time was standardized, distances collapsed, and London’s reach extended far beyond its streets.
+        </p>
+      `,
+      imageSrc: 'images/paddington.jpg',
+      captionHTML: `William Powell Frith, <span style="font-style: italic;">The Railway Station</span> (1862)`
+    });
+
+    addHotspot({
+      points: [
+        [8278.000000, 5458.500000],
+        [8246.750000, 5477.750000],
+        [8268.000000, 5510.250000],
+        [8297.500000, 5490.000000]
+      ],
+      title: 'Lyceum Theatre',
+      bodyHTML: `
+        <p>
+          Rebuilt in 1834 and reaching its Victorian heyday in the mid-to-late nineteenth century, the Lyceum Theatre was one of London’s most important cultural institutions, standing at the intersection of popular entertainment, literary prestige, and celebrity culture.
+        </p>
+        <p>
+          By the latter half of the nineteenth century, the Lyceum became synonymous with Henry Irving, whose productions elevated the status of the actor-manager and helped transform the theatre into a respectable—even aspirational—space for the middle classes. Under Irving, Shakespearean drama was staged with unprecedented visual spectacle, historical detail, and emotional seriousness.
+        </p>
+        <p>
+          For Victorian audiences, the Lyceum embodied the idea that theatre could be both entertainment and moral instruction—a place where art, commerce, and public life converged under the glow of gaslight.
+        </p>
+      `,
+      imageSrc: 'images/lyceum.jpg',
+      captionHTML: 'A view from the stage of The Lyceum Theatre'
+    });
+
+    addHotspot({
+      points: [
+        [8431.500000, 7218.000000],
+        [8376.000000, 7206.000000],
+        [8358.000000, 7239.000000],
+        [8435.500000, 7275.500000]
+      ],
+      title: 'East India House',
+      bodyHTML: `
+        <p>
+          Demolished in 1861 and located on Leadenhall Street, East India House served as the London headquarters of the British East India Company from the early 18th century until the mid-19th century. From within its offices, a private corporation governed vast territories, commanded armies, controlled trade routes, and shaped the lives of millions across India and beyond.
+        </p>
+        <p>
+          To Victorian Londoners, East India House appeared as a sober administrative building—unremarkable in scale compared to Parliament or the great railway stations. Yet it functioned as the nerve center of Britain’s imperial power, where commercial interests, political authority, and military force merged.
+        </p>
+        <p>
+          The building’s quiet presence reflected a defining paradox of empire: decisions of enormous consequence were made not in grand ceremonial spaces, but behind desks, ledgers, and committee doors.
+        </p>
+      `,
+      imageSrc: 'images/eastindia.jpg',
+      captionHTML: ''
+    });
+
+    addHotspot({
+      points: [
+        [9223.500000, 5629.500000],
+        [9136.500000, 5676.000000],
+        [9139.000000, 5707.500000],
+        [9232.000000, 5653.500000]
+      ],
+      title: 'Charles Dickens: Doughty Street',
+      bodyHTML: `
+        <p>
+          48 Doughty Street, Bloomsbury<br>
+          (Dickens lived here 1837–1839)
+        </p>
+        <p>
+          Charles Dickens lived at 48 Doughty Street during a formative period of his career, when he was emerging as the most influential novelist of Victorian England. It was here that he completed <span style="font-style: italic;">Oliver Twist</span> and <span style="font-style: italic;">Nicholas Nickleby</span>—works that brought unprecedented attention to poverty, crime, childhood suffering, and the moral failures of modern urban life.
+        </p>
+        <p>
+          Though Dickens’s novels vividly depict workhouses, prisons, courts, and slums, his own domestic life unfolded in relative comfort. That distance was not incidental: Dickens wrote as an observer shaped by memory, imagination, and moral urgency rather than direct immersion. His work transformed private outrage into public conscience, helping to fix the image of Victorian London—its cruelty, vitality, humor, and injustice—in the modern imagination.
+        </p>
+        <p>
+          Today, the house stands as a reminder that literature itself was one of the era’s most powerful institutions.
+        </p>
+      `,
+      imageSrc: 'images/dickens.jpg',
+      captionHTML: `Daniel Maclise, <span style="font-style: italic;">Portrait of Charles Dickens</span>, 1839`
+    });
+
+    addHotspot({
+      points: [
+        [8895.403307, 5078.440902],
+        [8769.538300, 5171.778998],
+        [8839.541872, 5269.359733],
+        [8959.042918, 5178.142959]
+      ],
+      title: 'British Museum',
+      bodyHTML: `
+        <p>
+          Opened in 1759, the British Museum was one of the defining intellectual institutions of Victorian London. Conceived as a universal museum, it sought to collect, classify, and display the material culture of the world within a single public space, offering knowledge as a civic good accessible beyond elite circles.
+        </p>
+        <p>
+          By the 19th century, the Museum had become both a symbol of Victorian confidence in scholarship and an embodiment of imperial reach. Its collections expanded rapidly through exploration, excavation, purchase, and colonial acquisition, transforming distant civilizations into objects of study within the imperial capital.
+        </p>
+        <p>
+          For Victorians, the British Museum represented order imposed upon global history—a place where the past could be arranged, interpreted, and made legible. It also raised enduring questions about ownership, authority, and the ethics of collecting that continue to shape debates about museums today.
+        </p>
+      `,
+      imageSrc: 'images/britishmuseum.jpg',
+      captionHTML: `South-facing front façade of the British Museum<br>The British Museum Reading Room`
+    });
+
+    addHotspot({
+      points: [
+        [8260.125487, 5528.893930],
+        [8172.672260, 5572.620544],
+        [8212.194391, 5664.278253],
+        [8303.011204, 5612.142675]
+      ],
+      title: 'Somerset House',
+      bodyHTML: `
+        <p>
+          Somerset House was one of the most telling buildings in Victorian London—not because it announced power with spectacle, but because it housed the practical institutions that made modern government possible. Built in the late 18th century along the Strand, its neoclassical grandeur projected order and permanence, yet its purpose was administrative: a central node where the state managed revenue, records, and oversight.
+        </p>
+        <p>
+          By 1860, Somerset House was closely associated with the machinery of taxation and regulation. It housed key offices of the Inland Revenue and other departments tied to customs, stamps, and the accounting systems that underwrote Britain’s expanding state. In a city increasingly shaped by commerce and empire, Somerset House represented the quiet infrastructure behind both: the ledgers, forms, and bureaucratic routines that translated national ambition into enforceable policy.
+        </p>
+        <p>
+          The building also embodied a Victorian faith in classification. Here the state made the world legible—counted, documented, filed, and standardized. That impulse could serve reform and efficiency, but it also carried an edge: the same systems that organized governance could also monitor, constrain, and extract.
+        </p>
+        <p>
+          For Victorian Londoners, Somerset House was a reminder that power did not only reside in Parliament or the Crown. It lived in administration—in the persistent, invisible work of offices where decisions were measured, recorded, and made permanent.
+        </p>
+      `,
+      imageSrc: 'images/somerset.jpg',
+      captionHTML: `F. Mackenzie, <span style="font-style: italic;">Somerset House, from the Thames</span>, Westminster, 1810`
+    });
+
+    addHotspot({
+      points: [
+        [8430.407011, 5372.487197],
+        [8392.146224, 5414.952466],
+        [8430.407011, 5444.804289],
+        [8459.838386, 5385.941540]
+      ],
+      title: 'Bow Street Magistrates’ Court',
+      bodyHTML: `
+        <p>
+          Bow Street Magistrates’ Court was one of the most important legal institutions in Victorian London, not because it tried great crimes, but because it handled everyday justice. Located near Covent Garden, it dealt with theft, assault, disorder, vagrancy, and domestic disputes—the routine frictions of urban life. For many Londoners, Bow Street was their first and only encounter with the law.
+        </p>
+        <p>
+          By 1860, justice here was swift and discretionary. Magistrates exercised broad authority, issuing fines, short sentences, or imprisonment with little ceremony. Proceedings were public and pragmatic, aimed less at deliberation than at restoring order. Poverty, drunkenness, and desperation were treated not as conditions to be addressed, but as behaviors to be corrected.
+        </p>
+        <p>
+          Closely associated with the legacy of the Bow Street Runners, the court stood at the intersection of law and policing. It embodied Victorian justice at ground level: immediate, personal, and unavoidable. Here, the authority of the state was not abstract or distant—it was applied case by case, in full view, and with lasting consequences.
+        </p>
+      `,
+      imageSrc: 'images/bowstreet.jpg',
+      captionHTML: 'A chaotic scene from the Bow Street Magistrates’ Court in session'
+    });
+
+    addHotspot({
+      points: [
+        [8877.500000, 8131.000000],
+        [8865.500000, 8136.000000],
+        [8958.000000, 8336.000000],
+        [8981.500000, 8324.000000]
+      ],
+      title: 'Jack the Ripper: Mary Ann “Polly” Nichols (Victim #1)',
+      bodyHTML: `
+        <p>
+          In the early hours of 31 August 1888, the body of Mary Ann “Polly” Nichols was found in Buck’s Row, a narrow street along the edge of Whitechapel. Her murder is widely regarded as the first “canonical” killing attributed to the figure later known as Jack the Ripper.
+        </p>
+        <p>
+          Buck’s Row itself was not a dramatic place—an ordinary working-class thoroughfare shaped by rail yards, warehouses, and cheap lodging. That ordinariness is part of what made the crime so unsettling. The violence was not staged in a gothic alley or distant ruin, but embedded in the everyday geography of a city where poverty, overcrowding, and exhaustion were normal conditions.
+        </p>
+        <p>
+          Nichols’s death exposed more than a single act of brutality. It revealed how precarious life could be for the poor—especially women—whose survival depended on unstable work, unsafe streets, and institutions that offered little protection. The Ripper story became a spectacle of fear and fascination, but the reality beneath it was Victorian London’s harsh social ecology: the thin line between endurance and catastrophe.
+        </p>
+        <p>
+          Buck’s Row is remembered because of what happened there. But what it represents is broader: a city that could absorb suffering so routinely that it became visible only when it turned into legend.
+        </p>
+      `,
+      imageSrc: 'images/nichols.jpg',
+      captionHTML: ''
+    });
+
+    addHotspot({
+      points: [
+        [8983.500000, 7662.750000],
+        [8959.500000, 7658.250000],
+        [8959.000000, 7715.750000],
+        [8984.750000, 7716.250000]
+      ],
+      title: 'Jack the Ripper: Annie Chapman (Victim #2)',
+      bodyHTML: `
+        <p>
+          On the morning of 8 September 1888, the body of Annie Chapman was discovered in the backyard of 29 Hanbury Street, Spitalfields. Her murder, following so closely after that of Mary Ann Nichols, transformed fear into certainty: London now understood that a pattern was forming.
+        </p>
+        <p>
+          Hanbury Street was a densely populated working-class area of lodging houses, small workshops, and shared courtyards—spaces where privacy was scarce and movement constant. That Chapman was killed within an enclosed yard, only yards from neighboring dwellings, shattered any illusion that proximity offered protection. Violence could occur not just in the street, but within the domestic spaces of the poor.
+        </p>
+        <p>
+          Chapman’s death intensified public anxiety and press attention, but it also exposed deeper structural vulnerabilities. Like Nichols, Chapman lived at the margins of economic survival, reliant on unstable work and temporary shelter. Her murder revealed how easily the poor could disappear into the city’s routines, noticed only when their deaths disrupted the social order.
+        </p>
+        <p>
+          Hanbury Street became infamous, but its significance lies less in notoriety than in what it exposed: a city in which overcrowding, poverty, and indifference created conditions where suffering could unfold unseen—until it could no longer be ignored.
+        </p>
+      `,
+      imageSrc: 'images/wantedposter.jpg',
+      captionHTML: '“Wanted” poster distributed after the second murder'
+    });
+
+    addHotspot({
+      points: [
+        [8535.485956, 7996.317035],
+        [8449.926035, 8003.388103],
+        [8452.047356, 8038.036335],
+        [8534.778849, 8033.440141]
+      ],
+      title: 'Jack the Ripper: Elizabeth Stride (Victim #3)',
+      bodyHTML: `
+        <p>
+          In the early hours of 30 September 1888, the body of Elizabeth Stride was found in Dutfield’s Yard off Berner Street, just beyond the entrance to a socialist club. Unlike other victims, Stride’s injuries suggested a sudden, interrupted attack—an anomaly that has long shaped interpretations of the crime.
+        </p>
+        <p>
+          Berner Street lay within a dense network of working-class housing, political meeting places, and informal social life. The yard where Stride was killed was not secluded in the usual sense; it bordered a space of activity, conversation, and movement. That proximity underscores how little distance separated ordinary life from lethal violence.
+        </p>
+        <p>
+          Stride’s death also complicates the Ripper narrative. The apparent interruption—possibly by a passerby or nearby disturbance—highlights the contingent nature of the crimes. Violence here was not inevitable or ritualized, but dependent on circumstance, timing, and chance.
+        </p>
+        <p>
+          As fear spread across East London, Stride’s murder reinforced a grim reality: even partial escape offered no safety. The city’s crowded streets and shared spaces, meant to provide community, could just as easily mask danger—revealing how precarious life was for those living at the margins.
+        </p>
+      `,
+      imageSrc: 'images/policenews.jpg',
+      captionHTML: 'The front page of <span style="font-style: italic;">The Illustrated Police News</span> after the “double event”'
+    });
+
+    addHotspot({
+      points: [
+        [8487.668482, 7430.166055],
+        [8455.559889, 7404.300800],
+        [8424.343203, 7442.950031],
+        [8452.884173, 7474.761321]
+      ],
+      title: 'Jack the Ripper: Catherine Eddowes (Victim #4)',
+      bodyHTML: `
+        <p>
+          In the early hours of 30 September 1888, less than an hour after the murder of Elizabeth Stride, the body of Catherine Eddowes was discovered in Mitre Square, within the jurisdiction of the City of London. The proximity in time between the two killings—later known as the “double event”—marked a decisive escalation in fear and urgency.
+        </p>
+        <p>
+          Mitre Square differed sharply from earlier sites. Unlike the dense residential streets of Whitechapel, it was a commercial and administrative space, bordered by warehouses, offices, and institutions. The murder demonstrated that violence was not confined to the poorest quarters of East London. It could cross boundaries—geographical, social, and administrative—with ease.
+        </p>
+        <p>
+          Eddowes’s killing intensified pressure on authorities. The fact that it occurred under a different police jurisdiction complicated coordination and underscored the fragmented nature of Victorian law enforcement. The city appeared not merely dangerous, but disjointed—its systems struggling to respond to events that moved faster than procedure.
+        </p>
+        <p>
+          Eddowes’s death cemented the Ripper’s presence in the public imagination, but it also revealed something more unsettling: that the city’s divisions—between districts, classes, and institutions—offered no meaningful protection. On that night, London itself seemed permeable, its order briefly undone by speed, chance, and silence.
+        </p>
+      `,
+      imageSrc: 'images/eddowes.jpg',
+      captionHTML: ''
+    });
+
+    /* ===== OLD BAILEY (SINGLE HOTSPOT) + POPUP PAGE-FLIP TO NEWGATE ===== */
+    const oldBaileyPoints = [
+      [8627.000000, 6327.500000],
+      [8563.500000, 6318.000000],
+      [8558.000000, 6346.000000],
+      [8618.500000, 6363.000000]
+    ];
+
+    const oldBaileyData = {
+      title: 'Old Bailey: Central Criminal Court',
+      bodyHTML: `
+        <p>
+          The Old Bailey was the principal criminal court of Victorian London—the place where the city judged its most serious offenses and publicly decided who would be punished, transported, or condemned to death. Though the court’s origins stretch back centuries, by the nineteenth century it had become a central ritual space of justice, spectacle, and moral instruction.
+        </p>
+        <p>
+          Trials at the Old Bailey were swift, public, and often unforgiving. Defendants—many drawn from the city’s poorest districts—stood before judges and juries who weighed not only evidence, but character, reputation, and social standing. Proceedings were reported widely in newspapers and pamphlets, transforming individual cases into moral lessons for the wider public. Justice here was not private deliberation; it was performance.
+        </p>
+        <p>
+          The court’s physical proximity to Newgate Prison was no accident. Judgment and punishment were meant to feel inseparable. A verdict delivered inside the courtroom could lead directly to imprisonment, transportation, or execution next door. The law did not merely pronounce guilt—it enacted consequence with immediacy.
+        </p>
+        <p>
+          For Victorian Londoners, the Old Bailey embodied the promise and menace of the legal system. It reassured the city that order was maintained through reasoned judgment, yet it also revealed how narrowly that judgment could be applied. The court offered a moment of deliberation—but it refused to linger on what followed.
+        </p>
+
+        <strong>Next door, judgment became confinement.</strong><br>
+
+        <button class="pp-linkbtn consequence" type="button" onclick="ppShowNewgate()">
+          Enter Newgate Prison
+        </button>
+      `,
+      imageSrc: 'images/oldbailey.jpg',
+      captionHTML: `Thomas Hosmer Shepherd, <span style="font-style: italic;">Central Criminal Court, The Old Bailey</span>, c. 1843`
+    };
+
+    const newgateData = {
+      title: 'Newgate Prison',
+      bodyHTML: `
+        <p><strong>If the Old Bailey decided guilt, Newgate enforced it.</strong></p>
+
+        <p>
+          Newgate Prison was Victorian London’s most infamous house of confinement—a grim institution that embodied the punitive underside of order. Standing beside the Old Bailey, it formed a single moral and architectural machine: judgment delivered in the courtroom, consequence enforced next door. In practice, the distance between verdict and imprisonment could be measured in minutes.
+        </p>
+        <p>
+          By 1860, Newgate held a volatile mix of prisoners: those awaiting trial, those serving sentences, and those condemned to death. Conditions were harsh and overcrowded, shaped by a long tradition of using confinement not only to restrain bodies but to discipline behavior. Though reforms in the nineteenth century sought greater regulation and hygiene, the logic of the prison remained fundamentally coercive: separation, surveillance, routine, and deprivation as tools of control.
+        </p>
+        <p>
+          Newgate was also a place of public fascination. Executions had long been carried out nearby, and even after reforms reduced the carnival atmosphere of punishment, the prison retained a powerful grip on the Victorian imagination. It was a symbol of criminality, but also of the social world that produced it—poverty, desperation, drink, and the precariousness of working-class life. Many who passed through its gates were not hardened villains, but the exhausted poor whose survival had slipped into illegality.
+        </p>
+        <p>
+          For Victorian Londoners, Newgate represented the promise that the city could contain disorder. Yet it also revealed the cost of that promise. The prison did not eliminate the conditions that fed crime; it managed them—by isolating the people who embodied them. In the shadow of Newgate, “justice” became inseparable from confinement, and the ideal of moral order took on the unmistakable shape of a locked door.
+        </p>
+
+        <button class="pp-linkbtn" type="button" onclick="ppShowOldBailey()">
+          Back to Old Bailey
+        </button>
+      `,
+      imageSrc: 'images/newgate.jpg',
+      captionHTML: 'A plan of Newgate Prison in London published in 1800'
+    };
+
+    const oldBaileyLayer = addHotspot({
+      points: oldBaileyPoints,
+      title: oldBaileyData.title,
+      bodyHTML: oldBaileyData.bodyHTML,
+      imageSrc: oldBaileyData.imageSrc,
+      captionHTML: oldBaileyData.captionHTML
+    });
+
+    window.ppShowNewgate = function() {
+      oldBaileyLayer.setPopupContent(popupHTML(newgateData));
+      oldBaileyLayer.openPopup();
+    };
+
+    window.ppShowOldBailey = function() {
+      oldBaileyLayer.setPopupContent(popupHTML(oldBaileyData));
+      oldBaileyLayer.openPopup();
+    };
+
+    addHotspot({
+      points: [
+        [9357.500000, 5065.500000],
+        [9283.500000, 5115.000000],
+        [9293.000000, 5128.000000],
+        [9366.500000, 5078.000000]
+      ],
+      title: 'Charles Dickens: Tavistock House',
+      bodyHTML: `
+        <p>
+          Tavistock House, located on Tavistock Square in Bloomsbury, was Charles Dickens’s London residence during the height of his fame and productivity. He lived here from 1851 to 1860, a decade in which he was no longer an emerging observer of urban life but a public moral authority—read, debated, and expected to speak for the conscience of the age.
+        </p>
+        <p>
+          It was at Tavistock House that Dickens wrote <span style="font-style: italic;">Bleak House</span>, <span style="font-style: italic;">Hard Times</span>, and <span style="font-style: italic;">Little Dorrit</span>, works that sharpened his critique of bureaucracy, legal inertia, industrial exploitation, and institutional cruelty. Unlike his earlier novels, these books interrogated systems—courts, factories, prisons, and administrations—that produced suffering rather than merely depicting it.
+        </p>
+        <p>
+          The house itself was spacious and respectable, designed for domestic comfort and social performance. Dickens entertained frequently and staged amateur theatricals, cultivating a public persona that blended moral seriousness with charm. Writing from this distance—from slums and workhouses to a leafy square—he critiqued Victorian power from within the establishment rather than at its margins.
+        </p>
+        <p>
+          Tavistock House thus marks a shift in Dickens’s role: from chronicler of hardship to interpreter of institutions. The novels produced here helped define how Victorians understood their own systems—and how later generations would imagine the moral landscape of nineteenth-century London.
+        </p>
+      `,
+      imageSrc: 'images/dickens1860.jpg',
+      captionHTML: 'Photograph of Charles Dickens, 1860'
+    });
+
+    addHotspot({
+      points: [
+        [8284.500000, 5625.250000],
+        [8219.750000, 5656.000000],
+        [8240.750000, 5688.250000],
+        [8303.750000, 5656.750000]
+      ],
+      title: 'Royal Society',
+      bodyHTML: `
+        <p>
+          Founded in 1660, the Royal Society was Britain’s most influential scientific institution—and by the Victorian era, one of the most powerful intellectual engines in the world. Meeting in London, it functioned as a clearinghouse for knowledge: experiments reported, papers read aloud, discoveries vetted, and claims disciplined by collective scrutiny.
+        </p>
+        <p>
+          By 1860, the Royal Society embodied a distinctly Victorian faith in science as a moral and civilizing force. Its members believed that nature could be understood through observation, measurement, and reason—and that such understanding would inevitably lead to progress. The Society’s motto, <span style="font-style: italic;">Nullius in verba</span> (“Take nobody’s word for it”), rejected authority in favor of evidence, positioning science as a corrective to superstition, tradition, and unexamined belief.
+        </p>
+        <p>
+          Yet the Society was not neutral. What counted as legitimate knowledge—and who was permitted to produce it—was shaped by class, education, and empire. Discoveries from across the globe flowed inward to London, where they were classified, named, and interpreted. Observation was inseparable from power. The world was not merely studied—it was rendered legible.
+        </p>
+        <p>
+          For Victorian Londoners, the Royal Society represented both the promise and the peril of modern knowledge: rigor, skepticism, and discipline paired with a growing confidence that the natural and human worlds could be ordered, explained, and improved from the center outward.
+        </p>
+      `,
+      imageSrc: 'images/royalsociety.jpg',
+      captionHTML: ''
+    });
+
+    addHotspot({
+      points: [
+        [8571.250000, 5647.500000],
+        [8539.000000, 5661.750000],
+        [8567.250000, 5724.750000],
+        [8597.500000, 5710.500000]
+      ],
+      title: 'Royal College of Surgeons (Hunterian Museum)',
+      bodyHTML: `
+        <p>
+          The Royal College of Surgeons was the institutional heart of Victorian medicine—a place where the human body was transformed into an object of study, classification, and professional authority. Closely associated with the Hunterian Museum, it housed thousands of anatomical specimens collected by the surgeon John Hunter and his successors: bones, organs, preserved tissues, and pathological anomalies arranged for instruction and comparison.
+        </p>
+        <p>
+          By 1860, the College represented medicine’s transition from craft to science. Surgery, once associated with barbers and manual skill, was becoming a learned profession grounded in anatomy, experimentation, and institutional training. The Hunterian Museum embodied this shift. Bodies—often drawn from the poor, the institutionalized, or the unclaimed dead—were rendered permanent, legible, and useful to medical knowledge.
+        </p>
+        <p>
+          Yet this progress carried moral weight. The transformation of human remains into specimens blurred the boundary between care and control. Pain, illness, and death were reframed as data. Consent was often absent, assumed, or irrelevant. The suffering of individuals became the raw material from which expertise was built.
+        </p>
+        <p>
+          For Victorian Londoners, the Royal College of Surgeons stood as a symbol of both hope and unease. It promised mastery over disease and injury, yet also revealed a world in which the body could be disassembled, preserved, and displayed. Here, modern medicine asserted its authority—quietly, clinically, and with consequences that extended far beyond the museum’s cases.
+        </p>
+      `,
+      imageSrc: 'images/hunterian.jpg',
+      captionHTML: `
+        Thomas Hosmer Shepherd,
+        <span style="font-style: italic;">The Hunterian Museum</span>, c. 1842
+      `
+    });
+
+    addHotspot({
+      points: [
+        [7959.500000, 4666.000000],
+        [7911.000000, 4692.000000],
+        [7931.500000, 4729.500000],
+        [7979.500000, 4702.000000]
+      ],
+      title: 'London Library (St. James’s Square)',
+      bodyHTML: `
+        <p>
+          Founded in 1841, the London Library was created as a corrective to institutional gatekeeping—a private lending library intended to give serious readers access to books without the restrictions imposed by universities, museums, or the state. Located in St James’s Square, it offered something radical by Victorian standards: intellectual freedom grounded in trust rather than supervision.
+        </p>
+        <p>
+          By 1860, the Library had become a crucial resource for writers, scholars, and independent thinkers. Its shelves were organized not for display but for use, allowing members to browse freely and borrow extensively. Unlike the British Museum Reading Room, where books were requested, monitored, and consumed under watchful eyes, the London Library assumed a reader capable of self-direction. Knowledge here was not curated into moral lessons—it was accumulated, consulted, and lived with.
+        </p>
+        <p>
+          The Library’s significance lay not only in what it contained, but in how it imagined its users. It treated reading as a private, sustained act rather than a public performance of learning. That ethos attracted figures such as Charles Dickens, whose membership reflected the Library’s role as a quiet engine of Victorian literary culture operating outside official hierarchies.
+        </p>
+        <p>
+          For Victorian Londoners, the London Library represented an alternative model of intellectual authority. It suggested that knowledge need not be centralized, supervised, or filtered through institutions of power. In a city increasingly defined by bureaucracy and classification, the Library stood for a subtler ideal: that serious thought could flourish in spaces built on discretion, independence, and trust.
+        </p>
+      `,
+      imageSrc: 'images/londonlibrary.jpg',
+      captionHTML: ''
+    });
+
+    addHotspot({
+      points: [
+        [9915.850529, 5299.329209],
+        [9751.034831, 5295.965623],
+        [9695.535668, 5467.508492],
+        [9711.512700, 5512.076002],
+        [9807.374891, 5375.850783],
+        [9920.055011, 5374.168990]
+      ],
+      title: 'King’s Cross',
+      bodyHTML: `
+        <p>
+          Opened in 1852 as the London terminus of the Great Northern Railway, King’s Cross was one of the most consequential transport hubs of Victorian London—not because of grandeur, but because of what it enabled. Designed for efficiency rather than spectacle, the station linked the capital directly to the industrial cities and agricultural regions of the north, tightening the circulation of goods, labor, and people.
+        </p>
+        <p>
+          By 1860, King’s Cross was less a destination than a conduit. It handled commuters, migrants, seasonal workers, and freight with equal indifference, embodying a new logic of movement in which speed and volume mattered more than comfort or ceremony. Its vast train shed and regimented platforms reflected a city increasingly organized around timetables, throughput, and coordination.
+        </p>
+        <p>
+          The area surrounding the station revealed the costs of this transformation. Cheap lodging houses, warehouses, and yards clustered nearby, creating a landscape shaped by transience rather than stability. For many arrivals, King’s Cross was their first encounter with London—and for some, their last foothold before slipping into its margins. Mobility promised opportunity, but it also produced displacement.
+        </p>
+        <p>
+          For Victorian Londoners, King’s Cross represented modernity stripped of romance. It was progress as logistics: impersonal, relentless, and indispensable. Here the city did not perform power or culture; it processed movement.
+        </p>
+      `,
+      imageSrc: 'images/kingscross.jpg',
+      captionHTML: `
+        King’s Cross from the
+        <span style="font-style: italic;">Illustrated London News</span>
+      `
+    });
+
+    addHotspot({
+      points: [
+        [9712.353596, 4689.679308],
+        [9530.719970, 4807.404806],
+        [9573.605688, 4877.199208],
+        [9727.489732, 4740.973989],
+        [9737.580489, 4713.224407]
+      ],
+      title: 'Euston Station',
+      bodyHTML: `
+        <p>
+          Opened in 1837, Euston Station was London’s first major railway terminus and a bold declaration that the railway age had arrived. Designed to impress as well as to function, it announced itself through the monumental Euston Arch—a massive Doric gateway intended to lend classical dignity to a technology many still regarded with suspicion.
+        </p>
+        <p>
+          By the Victorian era, Euston embodied an early confidence that modern industry could be harmonized with the language of ancient authority. The Arch did not merely mark an entrance; it framed the railway as heir to empire, order, and permanence. Travel by steam was presented not as rupture, but as continuation—progress cloaked in stone.
+        </p>
+        <p>
+          Yet behind the symbolism, Euston was a machine. Trains arrived and departed with increasing frequency, carrying passengers northward into an expanding network of industrial towns and commercial routes. As rail traffic intensified, the classical façade came to feel increasingly disconnected from the realities it masked: smoke, noise, congestion, and the relentless demands of coordination.
+        </p>
+        <p>
+          For Victorian Londoners, Euston represented an early attempt to domesticate modernity—to reassure the public that speed, disruption, and mechanical power could be made respectable through architectural grandeur. Its later history, including the controversial demolition of the Euston Arch, would underscore the tension it embodied between symbolism and function.
+        </p>
+      `,
+      imageSrc: 'images/euston.jpg',
+      captionHTML: `
+        Edward Radclyffe,
+        <span style="font-style: italic;">Entrance to Euston Station</span>, c. 1838
+      `
+    });
+
+    addHotspot({
+      points: [
+        [8002.390736, 5248.454976],
+        [7932.175885, 5322.033412],
+        [7960.766363, 5349.782994],
+        [8028.878973, 5273.681868]
+      ],
+      title: 'Charing Cross',
+      bodyHTML: `
+        <p>
+          Opened in 1864 as the London terminus of the South Eastern Railway, Charing Cross occupied one of the most symbolically charged sites in the city. Long regarded as the notional center of London—marked by a medieval cross commemorating Queen Eleanor—the location carried historical weight long before rails arrived. The station did not merely insert itself into the urban fabric; it overlaid modern transport onto a landscape already dense with meaning.
+        </p>
+        <p>
+          By the Victorian period, Charing Cross represented the fusion of movement and monument. Its architecture blended Gothic revival ornament with industrial ironwork, reflecting a broader cultural impulse to aestheticize modern infrastructure. Travel here was framed not simply as transit, but as experience—one that acknowledged history even as it accelerated beyond it.
+        </p>
+        <p>
+          Unlike the great northern termini, Charing Cross served routes toward the coast and the Continent. It functioned as a gateway not just out of the city, but beyond the nation, connecting London to ports, ferries, and international networks. The station thus occupied a liminal role: both central and outward-facing, anchored and transitional.
+        </p>
+        <p>
+          For Victorian Londoners, Charing Cross symbolized modernity negotiated rather than imposed. It suggested that progress need not erase memory, but could be layered upon it—steel and steam rising where stone crosses once stood. Beneath the ornament, however, the station remained a system of schedules, crowds, and departures, reminding the city that even its most meaningful places were now subject to motion.
+        </p>
+      `,
+      imageSrc: 'images/charingcross.jpg',
+      captionHTML: `
+        The Kell Brothers,
+        <span style="font-style: italic;">Interior of Charing Cross Station</span>, c. 1864
+      `
+    });
+
+    addHotspot({
+      points: [
+        [8317.306443, 5300.170105],
+        [8256.761901, 5334.646858],
+        [8310.579272, 5423.781878],
+        [8381.214571, 5378.373472]
+      ],
+      title: 'Covent Garden',
+      bodyHTML: `
+        <p>
+          By the mid-nineteenth century, Covent Garden was one of Victorian London’s most complex social stages—a place where commerce, entertainment, and everyday life overlapped in full public view. Long associated with markets and theatres, the area functioned as both workplace and playground, drawing together aristocrats, performers, laborers, and the urban poor within a few crowded streets.
+        </p>
+        <p>
+          At its center stood the market itself, rebuilt in the 1830s as a neoclassical structure devoted to the wholesale trade in fruit, vegetables, and flowers. From early morning, porters, vendors, and buyers filled the square, supplying much of the city’s daily food. This commerce was physical, noisy, and relentless—an essential but largely invisible labor that underwrote London’s comfort and abundance.
+        </p>
+        <p>
+          Alongside the market flourished a dense entertainment economy. Theatres, music halls, taverns, and coffeehouses clustered nearby, making Covent Garden a focal point of nightlife. It was also an area long associated with prostitution, a fact simultaneously exploited, condemned, and ignored. Pleasure here was not abstract or discreet; it was embodied, negotiated in streets and doorways, and shaped by sharp inequalities of class and gender.
+        </p>
+        <p>
+          For Victorian Londoners, Covent Garden represented the uneasy coexistence of refinement and disorder. It was a place where culture was consumed and produced, where art and appetite met, and where respectability brushed uncomfortably close to vice—revealing how leisure and labor were inseparable parts of the same crowded urban system.
+        </p>
+      `,
+      imageSrc: 'images/coventgarden.jpg',
+      captionHTML: `
+        W. J. Linton,
+        <span style="font-style: italic;">Covent Garden Flower Market</span>, c. 1848
+      `
+    });
+
+    /* ===== DOCKLANDS (OVERVIEW) ===== */
+    addHotspot({
+      points: [
+        [8107.923236, 7672.338893],
+        [7921.244232, 7608.430765],
+        [7697.565785, 8126.422957],
+        [7684.111443, 8392.146224],
+        [8020.470009, 8726.822998],
+        [8107.923236, 8821.003396],
+        [8153.331642, 8689.823555],
+        [8131.468336, 8227.330527],
+        [8114.650407, 7874.154032]
+      ],
+      title: 'Docklands (Overview)',
+      bodyHTML: `
+        <p>
+          By 1860, London’s Docklands formed one of the largest and busiest port systems in the world. Stretching eastward along the Thames—from Wapping and Limehouse through the enclosed docks of the East End—this waterfront zone was where global trade physically entered the city. Sugar, tea, coffee, tobacco, timber, cotton, spices, and manufactured goods arrived here, binding London to colonies and markets across the globe.
+        </p>
+        <p>
+          The Docklands were engineered for control as much as commerce. Enclosed basins, guarded entrances, and regimented unloading procedures were designed to reduce theft and impose order on maritime chaos. Cargo was inventoried, labor supervised, and movement regulated. Even the river itself—once an open commons—was increasingly segmented and disciplined, transformed into infrastructure.
+        </p>
+        <p>
+          Life along the docks was precarious and harsh. Dock labor was largely casual: men gathered daily in the hope of being selected for work, while many returned home empty-handed. The surrounding neighborhoods were dense with lodging houses, taverns, warehouses, and poverty. Vast wealth passed constantly through the area, but rarely settled there. The Docklands were rich in goods and poor in security.
+        </p>
+        <p>
+          For Victorian London, the Docklands embodied a central contradiction of empire. They were the engine of the city’s prosperity and global reach, yet also sites of danger, exploitation, and anonymity. Imperial power arrived here by ship, was carried by hand, and disappeared into warehouses—leaving profit for the metropolis and risk for those who worked its edge.
+        </p>
+        <p>
+          The Docklands remind us that Victorian authority did not reside only in Parliament, museums, or monuments. It entered the city quietly, tide by tide, crate by crate—its benefits visible everywhere, its human cost largely unseen.
+        </p>
+      `,
+      imageSrc: 'images/docks.jpg',
+      captionHTML: `
+        Unknown,
+        <span style="font-style: italic;">St Katharine’s Docks, London</span>, c. 1880
+      `
+    });
+
+    addHotspot({
+      points: [
+        [8109.605029, 7187.562109],
+        [8065.037519, 7180.834938],
+        [8046.117349, 7290.571920],
+        [8091.105308, 7294.776402]
+      ],
+      title: 'Customs House',
+      bodyHTML: `
+        <p>
+          The Customs House stood at the administrative heart of London’s port economy—the place where goods ceased to be merely cargo and became taxable property of the state. Every ship entering the Thames passed, in effect, through its authority. Here, manifests were inspected, duties assessed, contraband seized, and imperial commerce translated into revenue.
+        </p>
+        <p>
+          By 1860, customs administration was essential to Britain’s global dominance. Tariffs on tea, sugar, tobacco, spirits, and manufactured goods generated vast income, funding government operations and sustaining imperial expansion. The Customs House was not a dramatic building, but its influence was immense: it governed what could enter the city, under what conditions, and at what price.
+        </p>
+        <p>
+          The work conducted inside was procedural and relentless. Clerks recorded quantities and origins; officers inspected holds and warehouses; regulations were enforced through paperwork as much as patrol. Smuggling was a constant concern, and the boundary between legal trade and illicit commerce was thin—policed through surveillance, documentation, and authority rather than spectacle.
+        </p>
+        <p>
+          For Victorian Londoners, the Customs House embodied an emerging truth of modern power: control did not require visibility. Empire was not only enforced by armies or proclaimed in monuments, but administered quietly through forms, stamps, and assessments. The state’s presence was felt not in ceremony, but in calculation.
+        </p>
+      `,
+      imageSrc: 'images/customhouse.jpg',
+      captionHTML: `
+        Samuel Owen,
+        <span style="font-style: italic;">Custom House, E16</span>, c. 1828
+      `
+    });
+
+    addHotspot({
+      points: [
+        [8041.218316, 9927.779208],
+        [7670.694362, 9891.009655],
+        [7529.273006, 10634.885989],
+        [7953.537075, 10564.175311]
+      ],
+      title: 'West India Docks',
+      bodyHTML: `
+        <p>
+          Opened in 1802, the West India Docks were among the most ambitious and tightly controlled commercial spaces in Victorian London. Built on the Isle of Dogs, they were designed specifically to handle goods arriving from the Caribbean—especially sugar, rum, coffee, and spices—commodities produced through enslaved and later coerced labor within Britain’s imperial system.
+        </p>
+        <p>
+          By 1860, the docks functioned as a fortified landscape of trade. High walls, guarded entrances, and enclosed basins transformed the open river into a secured industrial zone. Theft, long endemic along the Thames, was treated not as a social problem but as a logistical one, solved through architecture, surveillance, and discipline. Commerce here was protected by design.
+        </p>
+        <p>
+          The scale of the West India Docks reflected the magnitude of imperial dependence. Sugar alone shaped British consumption, wealth, and diet, and its arrival in London was both routine and monumental. Vast quantities passed through warehouses that loomed over the water, while dock laborers worked under harsh conditions, subject to casual hiring, long hours, and constant insecurity.
+        </p>
+        <p>
+          For Victorian Londoners, the West India Docks were largely invisible—remote, inaccessible, and sealed off from everyday life. Yet their presence was embedded everywhere: in tea cups, baked goods, taverns, and domestic kitchens. The comforts of metropolitan life were inseparable from the labor systems that fed these docks.
+        </p>
+        <p>
+          The West India Docks expose the material reality of empire. This was not abstraction or ideology, but infrastructure—built to receive the products of distant plantations, regulate their movement, and convert exploitation into profit.
+        </p>
+      `,
+      imageSrc: 'images/westindia.jpg',
+      captionHTML: `
+        The West India Docks from
+        <span style="font-style: italic;">Microcosm of London</span>, c. 1810
+      `
+    });
+
+    addHotspot({
+      points: [
+        [8298.605184, 10711.253521],
+        [7995.963482, 10852.674878],
+        [8103.443712, 11175.115570],
+        [8406.085415, 11064.806912]
+      ],
+      title: 'East India Docks',
+      bodyHTML: `
+        <p>
+          Opened in 1806, the East India Docks were built to serve the trade of the British East India Company and its successors, handling goods arriving from South and East Asia: tea, spices, textiles, porcelain, and later opium. Located downstream from the City, the docks received ships that had traveled thousands of miles, carrying commodities that reshaped British consumption, wealth, and imperial policy.
+        </p>
+        <p>
+          By 1860, the East India Docks formed a tightly regulated commercial environment. Like the West India Docks, they were enclosed, guarded, and deliberately separated from the surrounding city. Warehouses, basins, and quays were designed to control movement, prevent theft, and maximize efficiency. Trade here was not only global—it was disciplined, monitored, and bureaucratically managed.
+        </p>
+        <p>
+          The goods unloaded at the East India Docks were often treated as luxuries, yet their presence reflected coercive systems far beyond London. Tea and textiles arrived through colonial extraction and political dominance; opium flowed through imperial trade networks that generated profit at home while inflicting harm abroad. The docks were the physical endpoint of policies decided in distant offices and enforced across continents.
+        </p>
+        <p>
+          For most Victorian Londoners, the East India Docks remained largely unseen. Few entered their walls, and fewer still understood the systems that sustained them. Yet their influence was constant—in daily habits, household goods, and routines that depended on uninterrupted global supply. The docks reveal empire not as adventure or spectacle, but as infrastructure: power rendered ordinary through the steady arrival of ships, crates, and ledgers along the Thames.
+        </p>
+      `,
+      imageSrc: 'images/eastindiadocks.jpg',
+      captionHTML: 'Entrance gate to the East India Docks, c. 1897'
+    });
+
+    addHotspot({
+      points: [
+        [8232.844253, 11379.469430],
+        [8121.121382, 11349.063838],
+        [8097.786858, 11458.665389],
+        [8211.631050, 11462.200923]
+      ],
+      title: 'Thames Iron Works',
+      bodyHTML: `
+        <p>
+          Founded in 1837 along the banks of the Thames at Blackwall, the Thames Iron Works was one of Victorian Britain’s most important industrial shipyards. Specializing in iron shipbuilding and heavy engineering, it played a central role in Britain’s transition from wooden sailing vessels to iron-hulled, steam-powered ships.
+        </p>
+        <p>
+          By 1860, the yard employed thousands of skilled and semi-skilled workers—riveters, boilermakers, engineers, and shipwrights—whose labor reshaped both maritime technology and industrial life. Shipbuilding here was loud, dangerous, and physically punishing, carried out amid furnaces, hammering metal, smoke, and constant risk. Craft knowledge increasingly gave way to industrial coordination, standardization, and scale.
+        </p>
+        <p>
+          The Thames Iron Works produced commercial vessels, warships, bridges, and large iron structures, linking civilian trade and military power within a single industrial system. Ships built here did not merely carry goods; they enforced imperial reach, protected trade routes, and projected British power across oceans. Industry and empire were forged together, plate by plate.
+        </p>
+        <p>
+          For Victorian Londoners, the Iron Works represented the engine room of modern power. While dock warehouses stored the products of global trade, this yard created the vessels that made that trade—and its enforcement—possible. It revealed the material truth of empire: that dominance depended not only on policy and profit, but on furnaces, tools, and the relentless labor of human bodies shaping iron into motion.
+        </p>
+      `,
+      imageSrc: 'images/thamesironworks.jpg',
+      captionHTML: `
+        View of the stern of the transatlantic liner <span style="font-style: italic;">Great Eastern</span> (“Leviathan”) under construction at the Thames Iron Works shipyard, from
+        <span style="font-style: italic;">The Illustrated London News</span>, c. 1857
+      `
+    });
+
+    addHotspot({
+      points: [
+        [7710.521632, 5141.536962],
+        [7657.304614, 5152.537128],
+        [7655.223501, 5186.726832],
+        [7721.224496, 5180.186193]
+      ],
+      title: 'Treasury',
+      bodyHTML: `
+        <p>
+          By 1860, the Treasury stood at the financial heart of Victorian government—a place where power was neither debated nor administered, but <em>measured</em>. Situated in the Whitehall and Horse Guards area, it oversaw the flow of money that made policy real: taxation, expenditure, salaries, military funding, colonial administration, and the servicing of national debt. If Parliament decided what ought to be done, and Whitehall organized how it would be done, the Treasury determined what could <em>afford</em> to be done.
+        </p>
+        <p>
+          The Victorian state was expanding rapidly, yet it defined itself through restraint. Treasury officials cultivated a reputation for prudence, economy, and suspicion of excess. Reform proposals—whether for public health, housing, education, or welfare—were routinely filtered through Treasury scrutiny. The question was rarely whether a problem existed, but whether its solution justified the cost. In this way, financial discipline became a moral language, shaping the limits of compassion and responsibility.
+        </p>
+        <p>
+          Unlike the theatrical visibility of Parliament, the Treasury’s authority was quiet and procedural. Power here took the form of budgets, estimates, and memoranda—numbers that translated human needs into columns of expenditure. Decisions made within these offices affected dockworkers and civil servants, soldiers and schoolchildren, paupers and colonial administrators alike, yet the mechanisms remained abstract and impersonal.
+        </p>
+        <p>
+          For Victorian Londoners, the Treasury symbolized a new truth about governance: that modern power was inseparable from accounting. Control no longer relied solely on law or force, but on calculation. The nation’s conscience was balanced against its ledger, and morality itself was increasingly expressed in figures, forecasts, and fiscal limits.
+        </p>
+      `,
+      imageSrc: 'images/penny.jpg',
+      captionHTML: `
+        Everyday money and abstract power: the smallest coins circulated through systems governed here.
+        <br><br>
+        <img src="images/banknote.jpg" alt="" style="width:100%; margin-top:8px;">
+        <div class="pp-caption">Banknotes and credit tied individual lives to national finance.</div>
+      `
+    });
+
+    addHotspot({
+      points: [
+        [7824.541144, 5182.444607],
+        [7796.791562, 5189.592227],
+        [7802.257389, 5219.864498],
+        [7840.097728, 5216.080464]
+      ],
+      title: 'Privy Council',
+      bodyHTML: `
+        <p>
+          By 1860, the Privy Council no longer governed in the dramatic sense suggested by its name, yet it remained one of the most enduring instruments of British authority. Operating in the orbit of Whitehall and the Crown, it functioned as a legal and procedural bridge between monarch, ministers, and administration—an ancient body adapted to the demands of modern governance.
+        </p>
+        <p>
+          Unlike Parliament, the Privy Council did not debate legislation in public. Its power lay in discretion. Through <em>Orders in Council</em>, it authorized regulations, appointments, colonial administration, and emergency measures without the full visibility or delay of parliamentary process. What appeared ceremonial on the surface masked a mechanism capable of swift, decisive action—particularly in matters of empire, trade, and security.
+        </p>
+        <p>
+          By the Victorian period, much of the Council’s influence was exercised through its committees. The Judicial Committee of the Privy Council served as the highest court of appeal for much of the British Empire, shaping law across colonies thousands of miles away. Legal authority flowed outward from London, binding distant territories to decisions made by men they would never meet.
+        </p>
+        <p>
+          The Privy Council embodied a central Victorian contradiction: reverence for constitutional tradition paired with an expanding apparatus of centralized control. Its language was continuity—ancient oaths, royal assent, inherited authority—but its function was modern. It allowed governance to move efficiently where parliamentary debate might slow or complicate action.
+        </p>
+        <p>
+          For Victorian Londoners, the Privy Council was largely invisible, known more by reputation than by experience. Yet its reach was extensive. It represented power exercised quietly, through precedent and procedure rather than spectacle—a reminder that the most consequential decisions were often made not on the floor of the House, but behind closed doors, in the name of continuity, order, and the Crown.
+        </p>
+      `,
+      imageSrc: 'images/privy.jpg',
+      captionHTML: `The Privy Council blended ceremony with executive authority; its committees helped project British law across the empire.`
+    });
+
+    addHotspot({
+      points: [
+        [7505.500000, 6784.000000],
+        [7504.750000, 6810.500000],
+        [7533.500000, 6813.000000],
+        [7529.250000, 6783.000000]
+      ],
+      title: 'Marshalsea Prison (Former Site)',
+      bodyHTML: `
+        <p>
+          Little of the Marshalsea Prison survives on the modern landscape. Most of its walls, cells, and internal structures were demolished in the nineteenth century, absorbed into the surrounding city. A small fragment of wall remains nearby, easily overlooked—one of the few physical traces of a prison that once confined thousands.
+        </p>
+        <p>
+          By the mid-nineteenth century, the Marshalsea had become a symbol of a system that punished poverty as moral failure. Unlike prisons for violent crime, it confined men, women, and children whose primary offense was insolvency. Debtors were incarcerated indefinitely, often for small sums, trapped in a legal paradox: imprisoned because they could not pay, yet unable to earn money because they were imprisoned.
+        </p>
+        <p>
+          Life inside the Marshalsea was stratified even in confinement. Prisoners with means could purchase better rooms, food, and limited freedoms; the poorest crowded into squalid wards, dependent on charity or family support. Entire families sometimes lived within the prison walls, blurring the boundary between punishment and domestic life. Debt was not merely an economic condition—it became a social identity enforced through incarceration.
+        </p>
+        <p>
+          Reform movements eventually challenged the logic of debtors’ prisons, and the Marshalsea closed in 1842. Its demolition erased most of the physical structure, but not the reasoning behind it. The belief that confinement could correct economic failure lingered, reappearing in other institutions designed to discipline poverty rather than relieve it.
+        </p>
+        <p>
+          The Marshalsea endures most powerfully in memory and literature, particularly through the work of Charles Dickens, whose family experience made the prison a recurring symbol of institutional cruelty. The surviving wall fragment stands as a quiet reminder of what once filled this space—and of how thoroughly the city can absorb even its harshest institutions.
+        </p>
+      `,
+      imageSrc: 'images/marshalsea.jpg',
+      captionHTML: 'The inner courtyard of the Marshalsea Prison, where debt shaped daily life, confinement, and family survival.'
+    });
+addHotspot({
+  points: [
+    [8761.483420, 9392.952398],
+    [8743.050710, 9400.087641],
+    [8741.266899, 9429.817818],
+    [8768.321361, 9420.304161]
+  ],
+  title: 'Ragged Schools (Overview)',
+    reference: 'Dr. Barnardo’s Ragged School',
+  bodyHTML: `
+    Ragged Schools were one of the most revealing responses Victorian London produced to a problem it could not ignore: the vast number of poor children living outside formal education, often outside stable family life, and sometimes outside the law. Beginning in the 1840s, these schools—run largely by religious and philanthropic volunteers—offered free instruction to children deemed too “ragged” to fit into ordinary classrooms.<br><br>
+
+    In practice, Ragged Schools were less about grammar than survival. Reading and writing mattered, but so did bread, soap, and a warm room. Many provided meals, clothing, and informal medical care; some offered evening classes for children who spent their days working as sellers, sweepers, messengers, or scavengers. For many pupils, the school was the only stable institution in a life shaped by eviction, casual labor, overcrowding, and loss.<br><br>
+
+    The movement was also grounded in a distinctly Victorian moral logic: education as rescue, discipline as kindness. Reformers believed children could be redeemed if removed early from the perceived dangers of street life—crime, drink, idleness, and inherited poverty. That compassion was genuine, but rarely neutral. Poor children were framed as both victims and risks: lives to be saved, and futures to be reshaped into safer citizens for the city.<br><br>
+
+    One of the best-known figures to emerge from this world was Dr. Thomas Barnardo, whose Free School for Destitute Children grew out of the Ragged School tradition in the East End during the 1860s. Barnardo began by teaching boys who slept rough and begged in the streets, but quickly realized that education alone could not compete with hunger and homelessness. His work expanded into shelters and homes, reflecting the limits of schooling in a city that produced need faster than reform could absorb it.<br><br>
+
+    Ragged Schools were eventually absorbed into broader systems of public education and child welfare, but their existence exposes a central Victorian truth: a modern city could generate extraordinary wealth and still leave thousands of children beyond the protections of childhood itself.
+  `,
+  imageSrc: 'images/raggedschool.jpg',
+  captionHTML: 'Inside a typical ragged school, where education, discipline, and charity intersected.'
+});
+addHotspot({
+  points: [
+    [9287.000000, 5412.500000],
+    [9170.500000, 5452.000000],
+    [9206.500000, 5555.500000],
+    [9285.000000, 5526.000000],
+    [9279.000000, 5505.000000],
+    [9318.000000, 5487.500000]
+  ],
+  title: 'Foundling Hospital',
+  bodyHTML: `
+    Founded in 1739, the Foundling Hospital was Britain’s first institution created specifically for the care of abandoned children. By the Victorian era, it had become one of London’s most emotionally charged moral landmarks—a place where private desperation met public charity. Mothers who could not support their infants left them here in hopes of survival, surrendering parental rights in exchange for the possibility of life.<br><br>
+
+    Admission was never guaranteed. Mothers were required to submit petitions explaining their circumstances, and selection was competitive. Infants were often identified by tokens—coins, ribbons, scraps of fabric, or small trinkets—left behind in case reunion might someday be possible. These objects, carefully preserved by the institution, are among the most haunting surviving records of Victorian maternal loss.<br><br>
+
+    Once admitted, children were raised under strict institutional regulation. The Hospital emphasized discipline, religious instruction, and preparation for useful labor. Boys were apprenticed into trades or the military; girls were trained for domestic service. Care was offered, but at the cost of separation, surveillance, and the erasure of family identity. Charity here was structured, conditional, and shaped by class and gender expectations.<br><br>
+
+    The Foundling Hospital was also a cultural institution. It became closely associated with the composer George Frideric Handel, who supported it through benefit performances and donations, helping to frame philanthropy as a public, respectable act. Art, music, and moral reform converged within its walls, transforming care for abandoned children into a visible expression of civic virtue.<br><br>
+
+    For Victorian Londoners, the Foundling Hospital embodied a painful compromise. It acknowledged that women could be ruined by pregnancy, that children could be born into impossible circumstances, and that abandonment was sometimes an act of survival rather than cruelty. Yet it also enforced a system in which compassion required surrender, care required control, and childhood itself became an institutional category—managed, monitored, and shaped in the name of moral order.
+  `,
+  imageSrc: 'images/foundling.jpg',
+  captionHTML: `
+    Thomas Rowlandson,
+    <span style="font-style: italic;">Foundling Hospital, The Chapel</span>, c. 1808
+  `
+});
+const stGilesPoints = [
+  [8597.711352, 5219.508705],
+  [8537.607276, 5260.874452],
+  [8580.387236, 5313.200354],
+  [8622.460090, 5278.198568]
+];
+
+const stGilesData = {
+  title: 'St. Giles Workhouse',
+  bodyHTML: `
+    The St Giles Workhouse stood at the edge of one of the most notorious districts in Victorian London. St Giles-in-the-Fields—near Seven Dials—was long associated with overcrowding, poverty, casual labor, and transience. By the nineteenth century, it had become a focal point for the city’s most unstable populations: the homeless, the unemployed, discharged soldiers, migrants, and those drifting in and out of survival.<br><br>
+
+    Unlike workhouses that primarily served settled local poor, St Giles functioned as an intake point for people in motion. Its population fluctuated constantly, shaped by seasonal labor, illness, eviction, and the rhythms of the street. This made it a critical node in London’s system for managing vagrancy—where poverty was not merely relieved, but sorted.<br><br>
+
+    Life inside the workhouse was governed by strict routine, segregation, and discipline. Families were separated; men, women, and children confined to different wards; labor assigned as both punishment and moral correction. Relief was deliberately unattractive. The workhouse was designed not as a refuge, but as a deterrent—its conditions meant to discourage reliance except as a last resort.<br><br>
+
+    St Giles was especially associated with the operation of Casual Wards for itinerant men and women seeking temporary shelter. These wards represented the harshest tier of the welfare system—relief offered briefly, conditionally, and never meant to provide stability.<br><br>
+
+    <strong>For those without a fixed address, relief led somewhere harsher.</strong><br>
+
+    <button class="pp-linkbtn consequence" type="button" onclick="ppShowCasualWard()">
+      Enter the Casual Ward
+    </button>
+  `,
+  imageSrc: 'images/stgiles.jpg',
+  captionHTML: 'The Rookery at St. Giles, 1850'
+};
+
+const casualWardData = {
+  title: 'Casual Ward (Vagrants’ Ward)',
+  bodyHTML: `
+    The Casual Ward—often called the “vagrants’ ward”—was the harshest, most minimal form of legal relief in Victorian London. It existed for people with no fixed address: the homeless, itinerant laborers, those recently discharged from prisons or hospitals, and anyone pushed onto the roads by unemployment, eviction, illness, or hunger. In a city that produced constant movement alongside constant poverty, the Casual Ward was how the state dealt with the mobile poor.<br><br>
+
+    Admission was temporary and deliberately unpleasant. A casual ward typically offered only a single night’s shelter—often on bare boards or benches—with strict rules, surveillance, and separation by sex. Food was basic and sometimes withheld until morning. Most importantly, relief was tied to compulsory labor: breaking stones, picking oakum, chopping wood, or other grinding tasks intended as both payment and deterrent. The logic was explicit: aid must never become attractive.<br><br>
+
+    In practice, the Casual Ward collapsed the boundary between welfare and punishment. Poverty was treated not as misfortune, but as behavior requiring discipline. The destitute were not helped so much as tested—and those who passed through were pushed back onto the streets carrying the mark of institutional control.<br><br>
+
+    For Victorian Londoners, the Casual Ward represented the state’s minimum mercy: enough to prevent death, but structured to warn against return. Survival was permitted—but only under conditions designed to humiliate, exhaust, and regulate.<br><br>
+
+    <button class="pp-linkbtn" type="button" onclick="ppShowStGiles()">
+      Back to St Giles Workhouse
+    </button>
+  `,
+  imageSrc: 'images/casualward.jpg',
+  captionHTML: `
+    Luke Fildes,
+    <span style="font-style: italic;">Applicants for Admission to a Casual Ward</span>, c. 1874
+  `
+};
+
+const stGilesLayer = addHotspot({
+  points: stGilesPoints,
+  title: stGilesData.title,
+  bodyHTML: stGilesData.bodyHTML,
+  imageSrc: stGilesData.imageSrc,
+  captionHTML: stGilesData.captionHTML
+});
+
+window.ppShowCasualWard = function() {
+  stGilesLayer.setPopupContent(popupHTML(casualWardData));
+  stGilesLayer.openPopup();
+};
+
+window.ppShowStGiles = function() {
+  stGilesLayer.setPopupContent(popupHTML(stGilesData));
+  stGilesLayer.openPopup();
+};
+addHotspot({
+  points: [
+    [9054.000000, 7502.000000],
+    [9001.000000, 7491.000000],
+    [8988.500000, 7569.000000],
+    [9049.500000, 7528.500000]
+  ],
+  title: 'Model Dwellings: Peabody Buildings (Overview)',
+    reference: 'First Peabody building in Spitalfields',
+  bodyHTML: `
+    The Peabody Buildings were among the most ambitious experiments in Victorian social reform: large-scale “model dwellings” intended to house the respectable working poor in conditions thought to encourage cleanliness, order, and moral improvement. Funded by the American banker George Peabody through the Peabody Trust, these early estates marked a shift away from punitive relief toward environmental reform.<br><br>
+
+    The first Peabody dwellings were deliberately placed in districts associated with extreme poverty, overcrowding, and instability—including Spitalfields and the surrounding East End. Reformers believed that improved housing could reshape behavior, producing healthier, more disciplined citizens. In this vision, poverty was not addressed through punishment or emergency charity, but through architecture, routine, and regulation.<br><br>
+
+    Life in the Peabody Buildings was governed by rules. Tenants were carefully selected, rents—though modest—were strictly enforced, and conduct was monitored. Cleanliness, sobriety, and regular employment were expected. Those who failed to meet these standards could be evicted. The buildings offered stability and dignity, but only to those who demonstrated conformity and self-discipline. Poverty here was not erased; it was filtered.<br><br>
+
+    Architecturally, the dwellings embodied Victorian ideals of order and visibility. Large blocks enclosed internal courtyards, shared stairwells structured daily movement, and domestic life unfolded in semi-public view. Privacy existed, but invisibility did not. Reform was built into the bricks, reinforcing the belief that environment could regulate behavior.<br><br>
+
+    For Victorian Londoners, the Peabody Buildings represented hope and limitation in equal measure. They acknowledged that the working poor deserved better than punishment or neglect, yet they stopped short of universal provision. Model dwellings did not address the homeless, the casually employed, or the chronically unstable. They offered improvement to those already close to respectability, leaving others to harsher forms of institutional control.
+  `,
+  imageSrc: 'images/peabody.jpg',
+  captionHTML: 'Early Peabody model dwellings in Spitalfields'
+});
+addHotspot({
+  points: [
+    [8288.773592, 5580.651689],
+    [8267.962467, 5588.678837],
+    [8285.800574, 5619.895524],
+    [8305.422491, 5609.192660]
+  ],
+  title: 'General Register Office (Somerset House)',
+  bodyHTML: `
+    The General Register Office, housed at Somerset House from 1837 onward, marked a decisive shift in how the British state understood and governed its population. For the first time, births, marriages, and deaths were systematically recorded by a central civil authority rather than by the Church. Identity, legitimacy, and existence itself became matters of state documentation.<br><br>
+
+    The creation of the General Register Office reflected Victorian faith in administration, classification, and statistical knowledge. By recording the basic facts of life across the population, the state could measure fertility, mortality, disease, and social change with unprecedented precision. Individuals were transformed into data—counted, compared, and aggregated into national patterns.<br><br>
+
+    This bureaucratic innovation had far-reaching consequences. Civil registration underpinned public health reform, life insurance, inheritance law, and demographic science. It enabled the state to track epidemics, identify trends in urban mortality, and justify interventions into housing, sanitation, and labor. Knowledge became a tool of governance.<br><br>
+
+    At the same time, registration imposed new forms of visibility and control. To be born, to marry, or to die without official record increasingly meant legal invisibility. The poor, the transient, and the marginalized were most likely to fall outside the system, their lives undercounted or misrecorded. Documentation promised order, but it also revealed whose lives the state considered legible.<br><br>
+
+    For Victorian Londoners, the General Register Office embodied the expanding reach of modern government. It did not police streets or judge crimes, but it quietly reshaped society by defining how lives were officially recognized. In Somerset House, clerks, ledgers, and forms helped transform a sprawling industrial city into something measurable—and therefore governable.
+  `,
+  imageSrc: 'images/registry.jpg',
+  captionHTML: 'The Registry of Wills, c. 1875'
+});
+addHotspot({
+  points: [
+    [7113.242358, 4316.227224],
+    [6971.132108, 4260.929093],
+    [6937.834309, 4316.821827],
+    [6973.510522, 4394.120290],
+    [7042.484535, 4421.472054],
+    [7078.755352, 4408.390775],
+    [7125.134430, 4390.552669],
+    [7128.702051, 4347.146609]
+  ],
+  title: 'Victoria Station',
+  bodyHTML: `
+    Opened in stages beginning in 1860, Victoria Station became one of the most important transport hubs in Victorian London. Unlike earlier termini oriented primarily toward industrial cities, Victoria was closely tied to administration, ceremony, and empire. Its lines connected London to the south coast and the Channel ports, placing the wider imperial world within scheduled reach of Westminster.<br><br>
+
+    The station served routes to Dover and continental connections, making it a key departure point for diplomats, soldiers, colonial officials, and travelers moving between Britain and Europe. Its proximity to Parliament and Whitehall turned Victoria into an extension of state power in motion—a place where political decisions translated into physical departure and return.<br><br>
+
+    Like all major Victorian rail termini, Victoria imposed a new discipline of time. Trains ran on standardized schedules, tickets governed movement, and punctuality became a civic expectation. “Railway time” displaced local clocks, synchronizing bodies and destinations according to industrial efficiency rather than natural rhythm.<br><br>
+
+    The station reshaped the surrounding city. Hotels, offices, and service industries clustered nearby, while constant flows of passengers blurred the boundary between resident and visitor. Victoria was not simply a place of travel; it was a mechanism of circulation—moving people, information, authority, and capital through the city at scale.<br><br>
+
+    For Victorian Londoners, Victoria Station embodied modernity at speed. It promised connection and opportunity, but demanded submission to schedules, systems, and surveillance. Movement here was no longer informal or incidental. It was planned, regulated, and timed—another way the modern city made itself legible, predictable, and controllable.
+  `,
+  imageSrc: 'images/victoria.jpg',
+  captionHTML: 'Early photograph of a completed Victoria Station'
+});
+addHotspot({
+  points: [
+    [8157.183828, 2172.232032],
+    [7594.326830, 2341.937659],
+    [7526.444579, 2638.922507],
+    [7560.385704, 3105.612983],
+    [7597.155257, 3484.622218],
+    [7665.037508, 3956.969548],
+    [7758.375603, 4053.136070],
+    [7797.973583, 4075.763487],
+    [8284.463048, 3739.180659],
+    [8417.399123, 3705.239533],
+    [8275.977767, 2856.711396],
+    [8196.781808, 2545.584412]
+  ],
+  title: 'Hyde Park',
+  bodyHTML: `
+    By the Victorian period, Hyde Park had become one of London’s most important public spaces—not merely a place of recreation, but a stage on which class, authority, leisure, and political expression were publicly negotiated. Once a royal hunting ground, the park had been transformed into a shared civic landscape where the boundaries between privilege and access were continuously tested.<br><br>
+
+    Hyde Park functioned as a social theater. The well-to-do promenaded along Rotten Row, displaying fashion, manners, and status, while working Londoners occupied other areas for walking, resting, or informal gathering. The park allowed visibility across class lines, but not equality. Space, movement, and acceptable behavior were subtly regulated, reinforcing social hierarchy even in an open setting.<br><br>
+
+    The park also became a focal point for political assembly. Public meetings, demonstrations, and speeches—particularly those demanding electoral reform or protesting government policy—turned Hyde Park into a pressure valve for popular unrest. The most famous confrontation came in 1866, when crowds protesting restrictions on assembly forced their way into the park, exposing the fragile balance between public liberty and state control.<br><br>
+
+    Hyde Park thus embodied a paradox of Victorian governance. It was promoted as a space of health, leisure, and moral improvement, yet closely monitored by authorities. Police presence, regulations, and occasional crackdowns revealed that public freedom existed only within limits defined by the state. The park was open—but never ungoverned.<br><br>
+
+    For Victorian Londoners, Hyde Park represented modern urban life in miniature. It offered fresh air in an industrial city, visibility in a society obsessed with respectability, and a rare arena where ordinary people could be seen—and heard—by power. It was not an escape from the city’s systems, but one of the places where those systems became most visible.
+  `,
+  imageSrc: 'images/hydepark.jpg',
+  captionHTML: `John Heaviside Clark, <span style="font-style: italic;">The View of the Fair in Hyde Park</span>, c. 1814`
+});
+addHotspot({
+  points: [
+    [7372.979769, 5672.266769],
+    [7334.718982, 5694.130076],
+    [7349.014221, 5728.606829],
+    [7391.899938, 5707.584419]
+  ],
+  title: 'Canterbury Music Hall (Lambeth)',
+  bodyHTML: `
+    Victorian music halls were among the most vibrant—and controversial—institutions of urban popular culture. Emerging from tavern entertainment and pleasure gardens, they offered song, comedy, spectacle, and novelty to a rapidly expanding working and lower-middle-class audience. The Canterbury Music Hall in Lambeth, one of the earliest and most influential venues, helped define the form that would dominate popular entertainment for decades.<br><br>
+
+    Music halls were spaces of collective experience. Audiences sang along, shouted, drank, and reacted openly, blurring the line between performer and spectator. Performances often drew on everyday urban life—work, marriage, poverty, gender roles, and authority—transforming familiar struggles into humor, satire, and shared recognition. In a city structured by hierarchy and discipline, the music hall offered a rare arena for loud, public release.<br><br>
+
+    At the same time, music halls were tightly regulated. Licensing laws, censorship, and police oversight shaped what could be performed and who could attend. Songs that pushed too far—politically, sexually, or morally—risked suppression. Respectability was constantly negotiated, especially as middle-class audiences began to patronize halls once associated with rougher crowds. Popular culture was tolerated, but only under watchful eyes.<br><br>
+
+    Music halls also played a powerful role in shaping identity. They popularized shared songs, catchphrases, and comic characters that crossed neighborhood and class boundaries. Performers cultivated exaggerated personas—comic drunks, flirtatious women, boastful soldiers—that both reinforced and subtly mocked social expectations. Gender norms, patriotism, class pride, and “the right way to be” were rehearsed nightly on stage.<br><br>
+
+    For Victorian Londoners, venues like the Canterbury represented modern mass culture in action. They revealed a city hungry for entertainment that reflected its own contradictions—joy and hardship, rebellion and conformity. Music halls did not overthrow social order, but they gave voice to those living within it, making laughter, song, and spectacle a central part of urban life.
+  `,
+  imageSrc: 'images/canterbury.jpg',
+  captionHTML: 'Canterbury Hall, c. 1856'
+});
+addHotspot({
+  points: [
+    [8456.451795, 6412.799368],
+    [8439.802895, 6413.988575],
+    [8420.775581, 6451.448599],
+    [8417.802564, 6490.692434],
+    [8427.910824, 6529.936268],
+    [8442.775913, 6547.179772],
+    [8488.560387, 6547.179772],
+    [8502.236269, 6544.801357],
+    [8479.641334, 6474.638138]
+  ],
+  title: 'St. Paul’s Cathedral',
+  bodyHTML: `
+    By the Victorian era, St Paul’s Cathedral stood not only as London’s most prominent religious landmark, but as a symbol of national endurance and moral authority. Rising above the commercial heart of the city, it anchored spiritual life amid rapid industrial, social, and imperial transformation. Its dome was a constant presence in a city otherwise defined by change.<br><br>
+
+    St Paul’s functioned as a civic as much as a religious space. National services, memorials, and public commemorations transformed the cathedral into a stage for collective identity. Victorians gathered here to mark victories, mourn losses, and reaffirm shared values, binding Christianity to ideas of duty, patriotism, and social order.<br><br>
+
+    The cathedral also embodied the moral contradictions of the age. While it preached charity, humility, and spiritual equality, it stood amid extreme economic inequality. Its grandeur contrasted sharply with the poverty of surrounding districts, underscoring the gap between moral aspiration and lived reality. Religion offered consolation, but rarely challenged the structures that produced suffering.<br><br>
+
+    St Paul’s helped shape Victorian respectability. Attendance, behavior, and public association with the cathedral signaled moral standing. Faith here was not purely private; it was visible, ceremonial, and tied to legitimacy. Religious authority reinforced social hierarchy even as it claimed universal reach.<br><br>
+
+    For Victorian Londoners, St Paul’s represented continuity in a city of disruption. It offered permanence amid industrial noise, population growth, and political reform. Yet it was not separate from modern life. Like other institutions of the period, the cathedral translated belief into structure—organizing values, legitimizing power, and reminding the city of what it was supposed to be.
+  `,
+  imageSrc: 'images/stpauls.jpg',
+  captionHTML: `Gustave Doré, <span style="font-style: italic;">St. Paul’s from Brewery Bridge</span>, c. 1872`
+});
+addHotspot({
+  points: [
+    [7361.250000, 5033.250000],
+    [7347.750000, 5031.500000],
+    [7341.500000, 5090.250000],
+    [7259.750000, 5089.000000],
+    [7245.250000, 5132.500000],
+    [7289.750000, 5133.750000],
+    [7289.500000, 5190.250000],
+    [7365.250000, 5192.500000],
+    [7383.500000, 5186.750000],
+    [7394.500000, 5141.500000],
+    [7393.500000, 5089.500000],
+    [7385.250000, 5079.750000],
+    [7358.250000, 5077.750000]
+  ],
+  title: 'Westminster Abbey',
+  bodyHTML: `
+    Westminster Abbey was not simply a church—it was one of Victorian London’s most powerful machines for turning history into authority. By the nineteenth century, it functioned as a national shrine: the place where monarchy, state ceremony, and public memory fused into a single moral narrative carved in stone.<br><br>
+
+    For Victorians, the Abbey offered a sense of continuity in an age of disruption. Industrial growth, urban poverty, political reform, and scientific upheaval were reshaping how Londoners understood their world. The Abbey answered that uncertainty with ritual and permanence. Coronations, royal funerals, and state occasions were staged here not only to honor individuals, but to reassure the nation that order endured.<br><br>
+
+    The building also served as a curated archive of fame. Poets, statesmen, military heroes, and scientific figures were memorialized within its walls, creating a map of who the nation believed it should remember. This remembrance was not neutral. To be granted a place in Westminster Abbey was to be folded into a particular version of “Britain”—one rooted in achievement, service, and imperial self-confidence.<br><br>
+
+    Yet the Abbey’s grandeur had an edge. It reinforced hierarchy as sacred fact: monarch above subject, elite above ordinary, official memory above private grief. In a city teeming with unmarked deaths—paupers, laborers, immigrants, the institutionalized—the Abbey reminded Londoners how unevenly a life could be valued after death.<br><br>
+
+    For Victorian London, Westminster Abbey represented religious authority in its most national form: faith braided tightly with ceremony, history, and power. Here, the past did not merely survive—it was performed, preserved, and used to shape what the present was allowed to become.
+  `,
+  imageSrc: 'images/westminsterabbey.jpg',
+  captionHTML: `Thomas Hosmer Shepherd, <span style="font-style: italic;">London: Westminster Abbey</span>, c. 1840`
+});
+addHotspot({
+  points: [
+    [8251.500000, 5405.500000],
+    [8215.500000, 5425.250000],
+    [8242.000000, 5470.250000],
+    [8279.250000, 5447.000000]
+  ],
+  title: 'Exeter Hall',
+  bodyHTML: `
+    Opened in 1831 on the Strand, Exeter Hall was one of the largest and most ideologically charged public meeting spaces in Victorian London. Neither church nor parliament, neither theatre nor lecture hall, it borrowed elements from all four. What gave Exeter Hall its power was not formal authority, but its ability to turn belief into spectacle and conviction into collective action.<br><br>
+
+    By the mid-nineteenth century, Exeter Hall had become synonymous with evangelical reform movements. Abolitionism, temperance, missionary societies, moral reform campaigns, and humanitarian causes all found a home here. Speakers addressed crowds numbering in the thousands, appealing not merely to reason but to conscience, emotion, and moral urgency. Audiences did not passively observe; they applauded, wept, signed pledges, and carried the language of reform outward into newspapers, pamphlets, and political pressure.<br><br>
+
+    Exeter Hall marked a crucial shift in how power operated in Victorian Britain. Unlike Parliament, it did not legislate. Unlike the Church, it did not confer sacrament or absolution. Yet its influence was real. It demonstrated that moral authority could be assembled—through rhetoric, shared sentiment, and mass participation—rather than inherited. The hall transformed private conscience into public force.<br><br>
+
+    The space was also deeply contested. Supporters saw Exeter Hall as the moral conscience of the nation, confronting slavery, vice, cruelty, and spiritual neglect. Critics, including figures such as Dickens and Carlyle, derided what they called “Exeter Hall morality” as sentimental, self-righteous, and performative—more comfortable with display than with complexity or consequence. The hall thus became a symbol not only of reform, but of the arguments surrounding reform itself.<br><br>
+
+    That tension was its significance. Exeter Hall was where Victorian London argued with itself about what moral progress meant, who had the right to define it, and how persuasion should operate in a mass society. It revealed a city in transition, where authority increasingly flowed not only from crown, church, or law, but from crowds convinced that righteousness could be organized, amplified, and made consequential.<br><br>
+
+    Exeter Hall no longer stands, but its legacy endures. It represents the moment when moral reform became a public performance—loud, emotional, collective, and controversial. In a city filled with monuments to power, Exeter Hall mattered because it showed how power could be created without them.
+  `,
+  imageSrc: 'images/exeterhall.jpg',
+  captionHTML: 'A meeting of the Royal Humane Society in Exeter Hall, 1840s'
+});
+addHotspot({
+  points: [
+    [6995.500000, 6338.500000],
+    [6949.500000, 6332.000000],
+    [6948.500000, 6402.000000],
+    [6996.500000, 6402.500000]
+  ],
+  title: 'Nonconformist Chapels of East London',
+  bodyHTML: `
+    By the mid-nineteenth century, East London had become one of the strongest centers of Nonconformist religious life in Britain. Baptist, Congregationalist, Methodist, and other dissenting chapels filled districts where the authority of the Church of England was weakest and its social reach most contested. These chapels were not marginal outposts of belief; they were central institutions in working-class and lower-middle-class life, shaping moral values, social networks, and political attitudes across the East End.<br><br>
+
+    Nonconformist religion rejected hierarchy, ritual, and state authority in matters of conscience. Worship emphasized preaching over ceremony, scripture over sacrament, and individual conversion over inherited status. Chapels were typically plain, functional buildings—often inserted directly into dense urban streetscapes—designed to hold large congregations rather than inspire architectural awe. Their power lay not in stone or ornament, but in voice, language, and shared conviction.<br><br>
+
+    Preachers spoke to audiences shaped by industrial labor, insecurity, and overcrowding. Sermons addressed moral struggle, self-discipline, temperance, responsibility, and hope, framing faith as something practical and lived rather than abstract or ceremonial. Chapel life extended beyond Sunday worship into schools, charitable societies, mutual aid, and reform campaigns, binding religious belief tightly to everyday survival and improvement.<br><br>
+
+    These chapels also cultivated independence of thought and organization. Outside the structures of the established church, Nonconformist congregations practiced self-governance through voluntary funding, lay participation, and collective decision-making. In doing so, they trained ordinary Londoners in habits of debate, organization, and civic engagement that fed directly into reform movements, political radicalism, and popular activism.<br><br>
+
+    Figures such as Charles Spurgeon, who preached to vast audiences at the nearby Metropolitan Tabernacle, exemplified the reach and confidence of this culture. Yet such prominence was not an exception. It was the visible expression of a wider religious landscape in which moral authority no longer flowed exclusively from church or state, but emerged wherever people gathered to listen, believe, and organize themselves in shared conviction.<br><br>
+
+    For Victorian London, East End Nonconformism represented an alternative moral order—one grounded in conscience rather than ceremony, persuasion rather than hierarchy, and voluntary commitment rather than inherited authority. It revealed a city in which religious power was increasingly decentralized, mobile, and responsive to the pressures of modern urban life.
+  `,
+  imageSrc: 'images/spurgeon.png',
+  captionHTML: 'Charles Spurgeon preaching to a packed congregation at the Metropolitan Tabernacle'
+});
+addHotspot({
+  points: [
+    [8479.000000, 6101.500000],
+    [8441.500000, 6104.000000],
+    [8442.000000, 6134.000000],
+    [8481.500000, 6133.500000]
+  ],
+  title: 'Church Missionary Society',
+  bodyHTML: `
+    Founded in 1799, the Church Missionary Society (CMS) was one of the most influential religious organizations of Victorian Britain. Operating from London, it served as a central engine of evangelical Anglicanism, committed to spreading Christianity across Britain’s expanding empire. By the mid-nineteenth century, the Society had become a global institution, dispatching missionaries, teachers, and clergy to Africa, India, East Asia, and the Pacific—often following the routes of trade, conquest, and colonial administration.<br><br>
+
+    The CMS embodied a distinctive Victorian fusion of faith, organization, and imperial confidence. Unlike older models of religious authority rooted in parish and sacrament, the Society functioned through committees, reports, correspondence, fundraising campaigns, and public meetings. Missionary work was carefully documented and circulated back to Britain in letters and pamphlets, transforming distant conversions into moral narratives for domestic audiences. The empire became legible through religion: mapped, described, and morally interpreted from the metropolitan center.<br><br>
+
+    In London, the Church Missionary Society occupied a space between church and public sphere. It was firmly Anglican and loyal to the established church, yet it operated with the energy and methods of voluntary reform movements. Sermons, lectures, and missionary anniversaries drew large crowds, while publications fostered a sense of participation among supporters who would never leave Britain. Ordinary believers were invited to imagine themselves as part of a global moral project—one that framed imperial expansion as spiritual responsibility.<br><br>
+
+    Yet the Society’s moral vision was inseparable from power. Missionary work often accompanied colonial authority, reshaping local cultures, languages, and social structures according to British religious norms. Conversion was rarely neutral: indigenous belief systems were recast as error or superstition, and spiritual reform intertwined with assumptions about “civilization,” discipline, and hierarchy. The CMS did not merely preach Christianity; it helped translate empire into a moral mission.<br><br>
+
+    For Victorians, the Church Missionary Society represented the outward face of religious authority—faith projected beyond the nation’s borders. It reveals one of the age’s defining tensions: the conviction that moral duty justified expansion, even as that expansion remade lives far beyond London’s sight.
+  `,
+  imageSrc: 'images/churchmission.jpg',
+  captionHTML: ''
+});
+addHotspot({
+  points: [
+    [7109.972039, 4782.693715],
+    [7081.133766, 4797.261502],
+    [7109.674737, 4854.938047],
+    [7139.107613, 4842.748674]
+  ],
+  title: 'Charity Schools of London (Overview)',
+    reference: 'The Grey Coat Hospital',
+  bodyHTML: `
+    Founded in 1698, the Grey Coat Hospital was one of London’s most enduring and emblematic charity schools. Established to educate poor children—initially boys, later girls—it formed part of an early philanthropic movement that treated schooling as a moral obligation rather than a public right. By the Victorian period, the institution stood as a living remnant of an older educational order, still operating within a city increasingly reshaped by reform, bureaucracy, and state intervention.<br><br>
+
+    Charity schools like the Grey Coat Hospital were built on a particular vision of poverty. Education was not intended to foster social mobility or intellectual independence, but to cultivate discipline, obedience, and respectability. Instruction focused on basic literacy, numeracy, and religious teaching, preparing children for domestic service, manual labor, or modest trades. Uniforms—most famously the grey coats themselves—made charity visible, marking pupils as recipients of benevolence and reinforcing social hierarchy in everyday life.<br><br>
+
+    By the nineteenth century, charity schools occupied an uneasy position in Victorian society. Reformers increasingly criticized them as paternalistic, inconsistent, or insufficiently systematic, while newer models—National Schools, ragged schools, and eventually state-supported education—pressed for greater standardization and reach. Yet institutions like the Grey Coat Hospital endured precisely because they embodied a moral logic many Victorians continued to value: that aid should be conditional, character-forming, and visibly ordered.<br><br>
+
+    The Grey Coat Hospital also reveals how education functioned as a form of social governance. Children were not simply taught; they were shaped. Timetables, religious instruction, dress, and behavior were tools for producing compliant subjects who would accept their place within the social order. Charity, in this sense, was inseparable from control. To be educated was to be improved—but also regulated.<br><br>
+
+    For Victorian London, charity schools represented an older moral economy persisting into a modern age. They bridged compassion and hierarchy, philanthropy and discipline. The Grey Coat Hospital stands as a reminder that before education became a universal entitlement, it was a gift—carefully administered, closely supervised, and designed as much to preserve order as to alleviate need.
+  `,
+  imageSrc: 'images/greycoat.jpg',
+  captionHTML: 'The entrance of the Grey Coat Hospital'
+});
+addHotspot({
+  points: [
+    [7295.191047, 5086.536133],
+    [7258.622928, 5088.319943],
+    [7231.271165, 5170.969838],
+    [7234.244182, 5180.483495],
+    [7286.866597, 5179.591589]
+  ],
+  title: 'Public Schools of England (Overview)',
+    reference: 'The Westminster School',
+  bodyHTML: `
+    By the nineteenth century, England’s public schools formed one of the most powerful and least questioned institutions shaping national life. Despite the name, these schools were neither public nor democratic. They were elite, fee-paying institutions designed to educate a narrow class of boys for leadership in church, state, law, the military, and the expanding machinery of empire. Westminster School, situated within the precincts of Westminster Abbey, offers a particularly stark illustration of this system’s intimacy with power.<br><br>
+
+    Public schools were concerned less with academic instruction than with character formation. Boys were trained to endure hardship, submit to hierarchy, command others, and internalize ideals of loyalty, discipline, and authority. Classical education—Latin, Greek, and history—served as a shared cultural language through which the ruling class recognized itself, reinforcing cohesion and continuity rather than intellectual diversity.<br><br>
+
+    Life within these institutions was deliberately enclosed. Boarding removed boys from family influence and placed emotional development under institutional control. Systems of prefects and internal discipline normalized hierarchy as natural and necessary, teaching obedience upward and authority downward. Cruelty and endurance were often reframed as moral training, producing men expected to govern without sentiment and rule without hesitation.<br><br>
+
+    Westminster School’s physical location made these assumptions visible. Set beside Parliament, the courts, and the Abbey, it placed elite education directly within the landscape of national authority. Pupils educated here moved seamlessly into universities, government offices, colonial administration, and professional life. The school did not simply prepare students for power; it made power feel inherited, familiar, and inevitable.<br><br>
+
+    For Victorian London, public schools represented stability in a period of social upheaval. While mass education, urban poverty, and political reform reshaped the city from below, these institutions preserved an older order by reproducing it. Childhood itself was stratified. Where charity schools and ragged schools trained the poor for obedience and survival, public schools trained the elite for command. The city educated its children toward sharply different destinies—some to be governed, and others to govern.
+  `,
+  imageSrc: 'images/westminsterschool.jpg',
+  captionHTML: `Augustus Charles Pugin, <span style="font-style: italic;">Westminster School Room</span>, c. 1816`
+});
+addHotspot({
+  points: [
+    [8393.828017, 8967.319372],
+    [8362.714850, 8966.478476],
+    [8363.135298, 9006.000607],
+    [8408.543704, 9004.739263],
+    [8405.180119, 8967.319372]
+  ],
+  title: 'Industrial Schools of London',
+  bodyHTML: `
+    By the mid-nineteenth century, industrial schools emerged as one of the most revealing—and coercive—institutions in Victorian London’s response to poverty and juvenile disorder. Unlike charity schools or ragged schools, industrial schools were not primarily voluntary. They were designed to remove children from their homes and neighborhoods before crime occurred, based on the belief that environment itself produced criminality.<br><br>
+
+    Industrial schools targeted children deemed “at risk”: the neglected, the unsupervised, the habitually truant, or those living in districts associated with vice and disorder. Admission often followed contact with police or magistrates, not because a child had committed a serious offense, but because authorities believed that they *might*. Poverty, unstable family life, and residence in places like Stepney were treated as predictive evidence of future criminal behavior.<br><br>
+
+    Education in industrial schools was inseparable from labor and discipline. Instruction emphasized routine, obedience, and manual training rather than intellectual development. Boys were prepared for agricultural or industrial work; girls for domestic service. Daily life was tightly regulated, structured around work, prayer, and surveillance. The aim was not simply to educate, but to reshape character through controlled environment and enforced habit.<br><br>
+
+    Stepney’s position within the East End made it a particularly stark example of this logic. Here, industrial schooling functioned as a form of preventive confinement embedded directly within the neighborhoods it sought to regulate. Children were removed from family influence and local culture in order to be remade as compliant workers and orderly subjects, then returned—ideally—to serve the very society that had deemed them dangerous.<br><br>
+
+    Industrial schools reveal a central Victorian assumption: that childhood poverty was not merely unfortunate, but threatening. These institutions blurred the line between education and punishment, welfare and coercion. They framed social intervention as protection—of the child, of society, of the future—while extending state authority deep into family life and the lives of the poor.
+  `,
+  imageSrc: 'images/industrial.jpg',
+  captionHTML: 'Inside a typical Victorian industrial school'
+});
+addHotspot({
+  points: [
+    [8511.973963, 5272.420524],
+    [8563.689093, 5330.021928],
+    [8577.563884, 5316.567585],
+    [8527.110099, 5259.386629]
+  ],
+  title: 'Lying-in Hospitals of London',
+  bodyHTML: `
+    By the nineteenth century, lying-in hospitals had become a significant feature of London’s medical and moral landscape. These institutions were established to care for poor women during childbirth, a moment increasingly framed by Victorian reformers as one of both physical danger and moral vulnerability. Childbirth, once managed primarily within the home by female midwives and neighborhood networks, was steadily drawn into institutional spaces governed by medical authority and social supervision.<br><br>
+
+    Lying-in hospitals offered practical benefits. They provided shelter, food, and medical attention to women who might otherwise give birth in overcrowded, unsanitary conditions. At a time when maternal and infant mortality remained high, these hospitals were promoted as humane interventions—sites where cleanliness, order, and professional oversight could reduce suffering. Yet admission was rarely unconditional. Most institutions restricted care to “respectable” women, often requiring proof of marriage, moral character, and compliance with institutional rules.<br><br>
+
+    This selectivity reveals the deeper logic of lying-in hospitals. They did not treat childbirth solely as a medical event, but as a social one. Patients were monitored, regulated, and instructed in proper maternal behavior. Hospital routines imposed discipline on bodies and conduct alike, reinforcing norms of femininity, domesticity, and sexual propriety. Unmarried mothers were frequently excluded or redirected elsewhere, reinforcing sharp distinctions between deserving and undeserving women.<br><br>
+
+    Lying-in hospitals also marked a profound shift in medical authority. During the Victorian period, obstetrics became increasingly professionalized, with male physicians assuming roles once dominated by female midwives. Institutional childbirth redefined reproduction as a condition requiring expert supervision, transforming women’s bodies into objects of medical observation, record-keeping, and intervention.<br><br>
+
+    In the wider fabric of Victorian London, lying-in hospitals occupied a gendered space of care and control. Like charity schools, workhouses, and industrial institutions, they framed aid as conditional and improvement as discipline. They reveal how Victorian society sought to manage reproduction itself—protecting life while enforcing moral order.
+  `,
+  imageSrc: 'images/lyinginhospital.jpg',
+  captionHTML: `
+    Allegorical representation of a lying-in hospital, showing patients entering and leaving under the supervision of Providence and Britannia, attended by figures of Piety and Plenty
+  `
+});
+addHotspot({
+  points: [
+    [7403.252040, 6117.941869],
+    [7473.466891, 6191.940754],
+    [7462.114789, 6202.872407],
+    [7412.922349, 6201.190614],
+    [7369.195735, 6151.157278]
+  ],
+  title: 'Magdalene Asylums of London',
+  bodyHTML: `
+    By the nineteenth century, Magdalene asylums formed one of the most morally charged institutions in London’s landscape of charity and reform. Established to “rescue” and reform women judged sexually immoral—most often prostitutes, but sometimes merely suspected or socially vulnerable—these institutions framed female sexuality as a social danger requiring confinement, discipline, and spiritual correction. Their stated aim was redemption; their method was control.<br><br>
+
+    Magdalene asylums operated at the intersection of religion, philanthropy, and punishment. Admission was usually described as voluntary, yet the circumstances that drove women inside—poverty, social ostracism, illness, pregnancy, or pressure from family, clergy, or authorities—left little real choice. Once admitted, residents entered a tightly regulated world structured around prayer, silence, obedience, and labor. Laundry and domestic work were not incidental tasks but central instruments of reform, intended to instill humility, routine, and submission.<br><br>
+
+    These institutions treated sexual transgression not as a temporary condition or social outcome, but as a moral failing embedded in character. Reform therefore required separation from the city, from past associations, and often from personal identity itself. Contact with the outside world was limited, speech restricted, and daily life closely supervised. Redemption was promised, but only through prolonged discipline and unquestioned compliance.<br><br>
+
+    Location mattered. Magdalene asylums were often placed near districts associated—by Victorian reformers—with vice and disorder, such as Whitechapel and Spitalfields. This proximity reinforced a moral geography in which certain neighborhoods were imagined as producing fallen women, while institutions like the Magdalen Hospital existed to remove and correct them. The city thus regulated female sexuality not only through law, but through space and institutional confinement.<br><br>
+
+    Magdalene asylums reveal the gendered logic of Victorian charity. While men’s moral failure was addressed through workhouses, prisons, or industrial training, women’s was framed as sexual and spiritual corruption. Aid was conditional, autonomy limited, and reform inseparable from surveillance. These institutions offered shelter and protection, but at the cost of freedom, privacy, and self-determination.
+  `,
+  imageSrc: 'images/magdalen.jpg',
+  captionHTML: 'Interior of the chapel of the Magdalen Hospital for “fallen women,” 1809'
+});
+addHotspot({
+  points: [
+    [10084.870708, 9404.165060],
+    [10052.916644, 9412.153576],
+    [10079.404881, 9484.470668],
+    [10129.858666, 9468.073188]
+  ],
+  title: 'Women’s Workrooms & the Garment Trades (Overview)',
+    reference: 'Floor Cloth Works in the Old Ford area',
+  bodyHTML: `
+    By the mid-nineteenth century, clothing manufacture had become one of the largest employers of women in London—and one of the most hidden. Sites like this garment works in Stepney anchor a vast, fragmented system of female labor that stretched across the East End, operating in mills, small workshops, back rooms, and private dwellings. Unlike the great factories of heavy industry, garment production thrived on invisibility.<br><br>
+
+    Women worked as seamstresses, machinists, finishers, pressers, and pieceworkers, often paid by the item rather than by the hour. This system rewarded speed and endurance while transferring economic risk onto the worker. When orders surged, women labored late into the night; when demand collapsed, wages vanished instantly. Regular employment was rare. Security almost nonexistent.<br><br>
+
+    The boundary between factory and home was deliberately blurred. Many employers outsourced work to avoid responsibility for conditions, illness, or injury, while retaining strict control over deadlines and quality. In crowded East London neighborhoods like Stepney, women stitched garments alongside children, meals, sickness, and exhaustion. Industrial labor unfolded inside domestic space, eroding any separation between work and life.<br><br>
+
+    Working conditions were harsh. Poor light strained eyes; long hours hunched over benches damaged backs and joints; air thick with cloth dust and steam worsened respiratory illness. Wages were low even by working-class standards, often insufficient to sustain a household. Yet women’s earnings were treated as supplemental rather than essential—despite the fact that many families depended on them entirely.<br><br>
+
+    Victorian society surrounded this labor with moral contradiction. Women’s industry was praised in theory but devalued in practice. Garment workers were frequently portrayed as perpetually at risk—of poverty, dependency, or moral “fall”—their economic precarity misread as personal failure rather than structural exploitation.<br><br>
+
+    The location of such workrooms mattered. Proximity to docks, warehouses, and commercial districts tied women’s labor directly to imperial trade. Uniforms, workwear, underclothing, and everyday garments passed through women’s hands before circulating across Britain and its empire. Their labor sustained markets far beyond the East End, even as their own lives remained confined by low pay and constant uncertainty.<br><br>
+
+    This site represents a fundamental truth of Victorian London: industrial modernity did not rest solely on grand factories or male labor. It depended equally on women’s disciplined, underpaid work—performed quietly, continuously, and largely unseen. The city was clothed by women whose labor rarely entered the historical record, even as it shaped daily life across the empire.
+  `,
+  imageSrc: 'images/garment.jpg',
+  captionHTML: 'Inside a typical Victorian garment workshop, where women’s labor sustained both household survival and imperial markets.'
+});
+addHotspot({
+  points: [
+    [7329.000000, 3741.000000],
+    [7235.000000, 3823.000000],
+    [7238.000000, 3869.000000],
+    [7399.000000, 4037.000000],
+    [7511.000000, 3922.000000]
+  ],
+  title: 'Domestic Service in London (Overview)',
+    reference: 'Belgravia Square',
+  bodyHTML: `
+    By the 1860s, Belgrave Square represented the height of fashionable London living—a district of grand stucco townhouses, controlled access, and carefully cultivated respectability. Yet the elegance displayed here depended upon a vast, largely invisible workforce. Domestic service was the single largest occupation in Victorian London, and areas like Belgravia were its architectural engine.<br><br>
+
+    The houses surrounding Belgrave Square were designed explicitly to contain servants. Hierarchy was built into the fabric of the home. Kitchens, sculleries, and coal cellars were sunk below ground; servants’ bedrooms were compressed into attic floors; narrow back staircases and service corridors ensured that labor moved without being seen. Bells rang from drawing rooms to basements, summoning work without presence. Silence, speed, and discretion were professional requirements.<br><br>
+
+    Domestic servants—predominantly women—performed continuous labor: cooking, cleaning, laundering, childcare, fire tending, and endless maintenance. Hours were long and ill-defined; privacy was minimal. Many lived where they worked, subject not only to employers’ authority but to their schedules, moral expectations, and personal temperaments. Service was not simply a job—it was a regulated way of life.<br><br>
+
+    Despite the scale and necessity of this labor, domestic service was rarely acknowledged as skilled or industrial. Wages were low, advancement limited, and dismissal could mean immediate homelessness. Yet elite comfort relied entirely upon servants’ constancy. Fashionable respectability was not an individual achievement but a collective illusion sustained through disciplined, underpaid work.<br><br>
+
+    Belgrave Square exposes a central Victorian contradiction. The most refined spaces in the city were also the most labor-intensive. Privacy depended on surveillance. Leisure rested on exhaustion. Wealth required intimate, daily service from those excluded from its benefits.<br><br>
+
+    This hotspot marks no single household because domestic service itself had no fixed address. It occupied the hidden rooms, the back staircases, and the margins of every respectable home. Belgravia stands here as a representative landscape—where privilege and labor were inseparably joined, and where Victorian social order was maintained not through spectacle, but through quiet, ceaseless work.
+  `,
+  imageSrc: 'images/belgravia.jpg',
+  captionHTML: 'Belgravia in the late nineteenth century, a landscape of privilege structured around unseen domestic labor.'
+});
+addHotspot({
+  points: [
+    [6205.877330, 5612.462979],
+    [6154.741424, 5629.111879],
+    [6112.524571, 5673.112542],
+    [6094.091861, 5727.221466],
+    [6095.281068, 5778.357372],
+    [6029.874677, 5865.169491],
+    [5999.549895, 5943.657161],
+    [6084.578204, 5965.657492],
+    [6085.767411, 6056.037233],
+    [6252.256407, 6123.822039],
+    [6331.933284, 6034.036902],
+    [6112.524571, 5893.710462],
+    [6170.795720, 5808.087550],
+    [6226.093851, 5780.141182],
+    [6259.391650, 5722.464637],
+    [6265.337685, 5663.598885],
+    [6241.553543, 5624.949654]
+  ],
+  title: 'Kennington Common: Popular Politics & Protest',
+  bodyHTML: `
+    Before it became a landscaped park, Kennington Common was one of Victorian London’s great open-air stages of public assembly. It was a space where crowds gathered not for leisure, but for reckoning—where political grievance could take visible, collective form.<br><br>
+
+    By the nineteenth century, the Common had already witnessed public executions, turning punishment into spectacle. But as the Victorian era advanced, the spectacle shifted from state authority to popular demand. Reformers, radicals, and working-class organizers increasingly claimed the space for mass meetings. The most famous of these occurred on 10 April 1848, when the Chartists assembled here in their campaign for universal male suffrage and parliamentary reform.<br><br>
+
+    The choice of location mattered. Kennington Common lay close enough to Westminster to feel symbolically charged, yet open enough to contain tens of thousands. In an age before broadcast media, protest required bodies physically present. The crowd itself was the message. Here, abstract demands—votes for working men, fair representation, political dignity—became tangible through sheer numbers.<br><br>
+
+    Authorities watched carefully. Large gatherings carried the threat of disorder, and the memory of continental revolutions in 1848 heightened official anxiety. The state responded with visible policing and strategic containment. Kennington Common thus became a testing ground: how far could popular politics press before meeting force?<br><br>
+
+    The Common reveals a central Victorian tension. Reform in Britain was often gradual and institutional, yet the pressure for it came from outside Parliament’s walls. Kennington Common embodied that pressure. It was not the site where laws were written—but it was where demands were made impossible to ignore.<br><br>
+
+    This landscape represents the physical dimension of popular politics: the transformation of private frustration into public assembly. Here, the Victorian state confronted its counterweight—the organized crowd, visible to itself and to power.
+  `,
+  imageSrc: 'images/kenningtoncommon.jpg',
+  captionHTML: 'William Edward Kilburn, Daguerreotype of the Great Chartist Meeting on Kennington Common, 10 April 1848'
+});
+addHotspot({
+  points: [
+    [8041.218316, 5048.035311],
+    [7966.972104, 5077.026689],
+    [7959.193929, 5116.624669],
+    [7975.457385, 5147.737367],
+    [7996.670588, 5159.051076],
+    [8063.138626, 5142.080513]
+  ],
+  title: 'Trafalgar Square: Imperial Monument & Popular Dissent',
+  bodyHTML: `
+    Completed in the 1840s, Trafalgar Square was designed as a monumental declaration of British naval supremacy. Dominated by Nelson’s Column and framed by the National Gallery, it commemorated victory at the Battle of Trafalgar and projected imperial confidence through order, symmetry, and stone.<br><br>
+
+    Yet almost from its creation, the Square became something more complicated. Its location—between Westminster, the Strand, and the commercial heart of London—made it both ceremonial and accessible. It was a civic stage meant to display national unity, but open enough to invite assembly. That openness transformed it into one of the most important arenas of popular politics in Victorian London.<br><br>
+
+    By the mid- and late nineteenth century, reformers, radicals, unemployed workers, Irish nationalists, and socialists gathered here to demand representation, relief, and rights. The space designed to celebrate imperial victory increasingly hosted voices of dissent. Protest beneath Nelson’s Column symbolically inverted the meaning of the Square: authority looked down from above while grievance rose from below.<br><br>
+
+    The tension between monument and movement became starkly visible in November 1887, when police violently dispersed demonstrators in what became known as “Bloody Sunday.” The event revealed how fragile the balance was between public space and state control. Trafalgar Square was public—but not without limits. When those limits were tested, the response was force.<br><br>
+
+    Unlike Kennington Common, which lay at the edge of power, Trafalgar Square sat at its center. Protest here could not be dismissed as peripheral. Crowds assembled not outside the symbols of authority, but directly beneath them. The Square thus embodied a central Victorian paradox: a nation confident enough to build monumental spaces, yet anxious about what might occur within them.<br><br>
+
+    Trafalgar Square represents the collision of imperial spectacle and democratic pressure—a place where Victorian Britain celebrated its strength while being compelled to negotiate it.
+  `,
+  imageSrc: 'images/trafalgar.jpg',
+  captionHTML: 'Public meeting in Trafalgar Square in commemoration of Bloody Sunday, 1892, illustration from <span style="font-style: italic;">John Cassell’s Illustrated History of England</span>'
+});
+addHotspot({
+  points: [
+    [8466.189491, 5900.806089],
+    [8441.440754, 5907.170050],
+    [8468.310811, 6001.922359],
+    [8471.846345, 6080.411211],
+    [8469.017918, 6206.983325],
+    [8485.281374, 6211.225966],
+    [8497.302190, 6201.326471],
+    [8498.716403, 6057.076688],
+    [8489.524015, 5981.416262]
+  ],
+  title: 'Fleet Street: Print, Public Opinion & Political Pressure',
+  bodyHTML: `
+    By the nineteenth century, Fleet Street had become synonymous with the power of the press. What Parliament debated and Trafalgar Square protested, Fleet Street printed. It was the dense corridor where newspapers, pamphlets, legal reports, and political commentary were produced and distributed at accelerating speed.<br><br>
+
+    The Victorian period witnessed an explosion in print culture. Steam-powered presses, cheaper paper, and rising literacy dramatically expanded circulation. Newspapers no longer addressed only elites; they reached clerks, shopkeepers, artisans, and skilled laborers. Public opinion was no longer abstract—it was manufactured daily in ink.<br><br>
+
+    Fleet Street functioned as an ecosystem: publishers, printers, reporters, compositors, engravers, and booksellers operating side by side. News traveled quickly from Parliament and the courts to pressrooms nearby. Crime, reform campaigns, foreign affairs, and social investigation were transformed into narrative, shaping how London understood itself.<br><br>
+
+    The street’s proximity to the legal district strengthened the relationship between law and journalism. Trials supplied material; newspapers amplified verdicts into moral drama. Campaigns for sanitary reform, expanded suffrage, and labor rights gained momentum through sustained coverage. At the same time, sensational reporting could inflame fear and prejudice. The press informed—and provoked.<br><br>
+
+    Fleet Street embodied a new dimension of Victorian power: influence without office. It did not legislate or enforce, but it framed. It selected what mattered, whose suffering was visible, and which demands seemed legitimate. In an age before broadcast media, print was the circulatory system of public life—and Fleet Street stood at its heart.
+  `,
+  imageSrc: 'images/newsboy.jpg',
+  captionHTML: 'Robert Sauber, <span style="font-style: italic;">The News Boy</span>, c. 1898'
+});
+addHotspot({
+  points: [
+    [12571.651463, 4062.328458],
+    [12553.973793, 4073.642166],
+    [12534.174803, 4057.378710],
+    [12399.117408, 4111.825933],
+    [12399.117408, 4237.690940],
+    [12310.021954, 4249.004648],
+    [12224.462033, 4247.590435],
+    [12183.449840, 4305.573191],
+    [12249.210770, 4384.062043],
+    [12330.528050, 4466.793537],
+    [12462.049912, 4385.476257],
+    [12440.129601, 4345.878277],
+    [12458.514378, 4334.564569],
+    [12466.292552, 4257.489930],
+    [12551.145366, 4234.862513],
+    [12629.634219, 4193.143212],
+    [12651.554529, 4176.172650],
+    [12614.077870, 4109.704612]
+  ],
+  title: 'Highgate Cemetery',
+  bodyHTML: `
+    Opened in 1839 as one of London’s great garden cemeteries, Highgate answered a pressing urban crisis: overcrowded parish churchyards had become both unsanitary and insufficient. Yet the solution was not merely practical. Highgate transformed burial into landscape, architecture, and public display.<br><br>
+
+    Unlike cramped inner-city graveyards, Highgate was designed as a picturesque retreat. Winding paths, terraced slopes, and dramatic architectural features—Gothic vaults, Egyptian-inspired avenues, classical monuments—turned mourning into a curated experience. Families visited, strolled, and commemorated. Grief was inscribed visibly in stone.<br><br>
+
+    Victorian mourning culture was elaborate and codified. Clothing, etiquette, and monument design carried social meaning. Highgate reflects this intensity. Angels, obelisks, and family vaults expressed not only sorrow but status. In death, as in life, hierarchy endured. The scale and grandeur of memorials were tied to wealth and reputation.<br><br>
+
+    The cemetery also reveals a deeper Victorian anxiety. In an age of industrial acceleration and rapid change, monumental architecture promised permanence. Egyptian and Gothic motifs suggested antiquity and endurance, as though the dead might be secured within the longer story of civilization itself.<br><br>
+
+    By mid-century, Highgate had become a cultural landmark, housing writers, reformers, politicians, and thinkers whose lives shaped the era. It functioned as a pantheon as much as a burial ground, reinforcing the idea that the nation’s memory could be organized spatially among its graves.<br><br>
+
+    Highgate embodies a Victorian paradox: intense fear of mortality alongside a theatrical embrace of remembrance. It represents a society that ritualized death, commercialized grief, and monumentalized memory—seeking stillness and grandeur in a city otherwise defined by noise, crowding, and relentless change.
+  `,
+  imageSrc: 'images/highgate.jpg',
+  captionHTML: 'Unknown, <span style="font-style: italic;">Highgate Cemetery</span>, London, c. 1838'
+});
+addHotspot({
+  points: [
+    [9693.019757, 337.997041],
+    [9694.433970, 397.394011],
+    [9702.919251, 514.773737],
+    [9697.262397, 622.253967],
+    [9654.835990, 717.006276],
+    [9622.309078, 789.131168],
+    [9601.095875, 868.327127],
+    [9579.882672, 929.138310],
+    [9531.799410, 994.192134],
+    [9478.059295, 1025.304833],
+    [9441.289742, 1022.476406],
+    [9435.632888, 972.978931],
+    [9469.574014, 903.682466],
+    [9512.000421, 845.699710],
+    [9516.243061, 794.788022],
+    [9470.988227, 712.763635],
+    [9435.632888, 615.182900],
+    [9420.076539, 520.430591],
+    [9422.904966, 431.335137],
+    [9407.348617, 353.553391]
+  ],
+  title: 'Kensal Green Cemetery',
+  bodyHTML: `
+    Opened in 1833, Kensal Green was London’s first great garden cemetery and a decisive break from the overcrowded parish churchyards of the inner city. By the early nineteenth century, burial conditions had become unsanitary and politically contentious. Kensal Green offered a new model: spacious, landscaped, privately managed, and architecturally ambitious.<br><br>
+
+    Broad avenues, classical monuments, and carefully arranged plots replaced the cramped and layered graves of urban churchyards. Death was relocated to a curated suburban landscape, reflecting Victorian ideals of improvement and order. The cemetery imposed rational planning upon mortality itself.<br><br>
+
+    Kensal Green also reveals the religious complexity of Victorian London. Separate chapels for Anglicans and Dissenters acknowledged denominational divisions within the expanding metropolis. Even in burial, social and religious distinctions were preserved and managed.<br><br>
+
+    Hierarchy remained visible. Grand mausoleums and elaborate sculptural monuments stood beside more modest graves. Wealth determined scale and permanence. Commemoration became both personal expression and public statement, turning mourning into architecture.<br><br>
+
+    As the first of the great “Magnificent Seven,” Kensal Green set the pattern later followed by Highgate and others. It reshaped the geography of death in London, moving it from crowded churchyards to designed landscapes on the city’s edge.<br><br>
+
+    Kensal Green marks the beginning of Victorian burial reform—a moment when the industrial metropolis sought to confront mortality not with concealment, but with monumentality, planning, and permanence.
+  `,
+  imageSrc: 'images/kensalgreen.jpg',
+  captionHTML: 'John Tallis, <span style="font-style: italic;">Kensal Green Cemetry</span>, c. 1851 (spelling as printed)'
+});
+addHotspot({
+  points: [
+    [8578.940128, 5082.671210],
+    [8577.156317, 5126.671873],
+    [8539.101689, 5113.590595],
+    [8511.749926, 5089.211849],
+    [8526.020411, 5079.103588],
+    [8556.939796, 5074.941363]
+  ],
+  title: 'St. Giles-in-the-fields: Overcrowded Churchyards & the Burial Crisis',
+  bodyHTML: `
+    Before the creation of London’s great garden cemeteries, burial took place within parish churchyards—spaces never designed to absorb the explosive growth of the industrial metropolis. By the early nineteenth century, many of these grounds had become dangerously overcrowded. Few illustrated the crisis more starkly than St. Giles-in-the-Fields.<br><br>
+
+    Situated in a densely populated district long associated with poverty and transience, St. Giles’ churchyard received generations of parish dead. As London expanded, burial space did not. Graves were reused repeatedly. Coffins were stacked upon one another. In some cases, remains were disturbed as new interments were made. The ground itself rose from accumulated layers of burial.<br><br>
+
+    The consequences were not merely aesthetic. Decomposition in tightly packed churchyards raised fears of disease and contamination. Reformers described foul odors, hazardous grave-digging conditions, and the seepage of decay into surrounding neighborhoods. What had once been sacred ground became a public health concern.<br><br>
+
+    Parliamentary investigations in the 1840s exposed the scale of the crisis. Reformers argued that the dead of London could no longer be accommodated within the living city. The solution was transformative: close overcrowded urban burial grounds and establish regulated cemeteries on the outskirts of the metropolis.<br><br>
+
+    St. Giles stands as a representative site of systemic strain. Its churchyard was not uniquely negligent—it was typical of many London parishes overwhelmed by industrial expansion. The burial crisis forced Victorians to reconsider how death should be managed in a modern city.<br><br>
+
+    From this crisis emerged the great garden cemeteries—planned landscapes that relocated burial beyond the crowded parish. At St. Giles, one sees the breaking point of the old system, and the beginning of a new geography of death.
+  `,
+  imageSrc: 'images/churchyards.jpg',
+  captionHTML: 'An overcrowded London churchyard, c. 1866'
+});
+addHotspot({
+  points: [
+    [8833.177911, 8237.794001],
+    [8777.316475, 8260.774971],
+    [8803.832979, 8326.182348],
+    [8864.290609, 8310.272446]
+  ],
+  title: 'Coroner’s Courts of London (Overview)',
+    reference: 'London Hospital in Whitechapel',
+  bodyHTML: `
+    In Victorian London, death did not always pass quietly from home to grave. When a person died suddenly, violently, or under uncertain circumstances, the matter entered a different system entirely: the coroner’s court. These inquests formed a crucial bridge between private tragedy and public record.<br><br>
+
+    Unlike criminal trials, coroner’s inquests were investigative rather than accusatory. A coroner—often legally trained—assembled a jury of local men to determine the cause of death. Witnesses testified. Doctors presented medical evidence. Police described the scene. The proceedings were open, and frequently attended by members of the press.<br><br>
+
+    Hospitals and public institutions often became central sites in this process. Bodies recovered from streets, lodging houses, or homes might be brought to a hospital for examination, where medical testimony helped translate suffering into official categories: natural causes, accident, suicide, or murder. The inquest was where the messy facts of a life—or its ending—were turned into the language of the state.<br><br>
+
+    Inquests were both procedural and performative. They reassured Londoners that unexplained deaths were scrutinized, yet they also exposed the conditions of urban life—industrial accidents, domestic violence, overcrowding, drink, hunger, and destitution. Through coroner’s courts, the city’s hidden realities entered formal documentation, and sometimes the newspapers, where private loss became public narrative.<br><br>
+
+    The Victorian inquest system reflects a society increasingly committed to bureaucratic order. Death required classification. Causes had to be named. Responsibility, when present, had to be traced. Even when no crime was found, the process itself affirmed that the authorities had looked—and recorded what they found.<br><br>
+
+    Coroner’s courts thus reveal a distinctive Victorian intersection of medicine, law, and publicity. They were not merely administrative procedures. They were moments when the living tried to make sense of the dead—and when a single body could briefly force the city to examine itself.
+  `,
+  imageSrc: 'images/coroner.jpg',
+  captionHTML: `John Fairburn, <span style="font-style: italic;">The Coroner's Jury Viewing the Murdered Body of Margaret Hawse</span>, from a chapbook (1829)`
+});
+addHotspot({
+  points: [
+    [9554.265070, 967.871774],
+    [9539.969831, 958.621913],
+    [9496.663666, 1006.553009],
+    [9514.322490, 1022.109593]
+  ],
+  title: 'Undertakers & the Funeral Trade',
+  bodyHTML: `
+    By the mid-nineteenth century, death in London had become not only a spiritual and social event, but a commercial enterprise. As burial practices shifted from parish churchyards to landscaped suburban cemeteries, a new professional class emerged to manage the process: the undertaker.<br><br>
+
+    Victorian “undertaking” often grew out of older trades. Many undertakers were originally cabinet makers, carpenters, or upholsterers—people already equipped to build coffins and supply household goods. Over time, however, the job expanded far beyond woodworking. Undertakers increasingly orchestrated the entire funeral: the coffin, fittings, transport, paperwork, coordination with clergy and cemetery officials, and the public staging of mourning itself.<br><br>
+
+    The rise of garden cemeteries made this organization even more necessary. Burials now required travel across the city, and funerals became logistical events as much as religious rites. Hearses, mourning coaches, hired plumes, and formal processions turned London’s streets into moving theatres of grief—rituals that made loss visible, orderly, and socially legible.<br><br>
+
+    Mourning culture was intensely codified. Black crepe, gloves, veils, jet jewelry, memorial cards, and the “proper” length of mourning signaled both relationship and status. Undertakers often supplied these items directly or directed families to associated vendors. In Victorian London, even sorrow had a price list.<br><br>
+
+    Class differences were unavoidable. Wealthier families could purchase elaborate coffins, extended carriage processions, and prominent grave monuments. Working-class funerals were simpler but still meaningful, sometimes supported through burial societies that helped families pay in small weekly contributions toward future funeral costs. Even modest dignity required planning and expense.<br><br>
+
+    The funeral trade reveals how Victorians tried to impose order on mortality. Professionalization promised control in moments of upheaval—yet it also raised uneasy questions about profit and display. Undertakers stood at the boundary between private grief and public ceremony, translating death into an event the city could manage.
+  `,
+  imageSrc: 'images/undertakerad.jpg',
+  captionHTML: `19th-century ad for cabinet maker and upholsterer H. G. Dunn—an example of how “undertaking” was often only one service among many.`
+});
+addHotspot({
+  points: [
+    [8534.071742, 4864.541101],
+    [8444.269181, 4900.603547],
+    [8463.714617, 4936.665993],
+    [8549.628091, 4895.300246]
+  ],
+  title: 'Karl Marx: Capital, Exile, & the Intellectual Underground of Soho',
+  bodyHTML: `
+    In the mid-nineteenth century, London became home to one of the most influential—and controversial—thinkers of the modern age: Karl Marx. Living in relative poverty in Soho after his exile from continental Europe, Marx wrote much of what would become <span style="font-style: italic;">Das Kapital</span> while observing the industrial heart of the British Empire from within its own metropolis.<br><br>
+
+    London was not incidental to his work; it was his laboratory. The city offered both material hardship and intellectual opportunity. Marx relied in part on the financial support of Friedrich Engels while spending long hours in the Reading Room of the British Museum, studying parliamentary reports, economic data, and industrial statistics. There, he developed his analysis of wage labor, commodity production, surplus value, and class struggle.<br><br>
+
+    Victorian London provided daily evidence for his arguments. Magnificent wealth coexisted with overcrowded slums; financial markets flourished alongside precarious labor. Factories, docks, railways, and banks formed an integrated system of production and circulation. Workers sold their labor; capital accumulated elsewhere.<br><br>
+
+    Marx’s labor theory of value rested on the claim that value derived from human labor—the socially necessary labor time embodied in commodities. In industrial London, this meant factory operatives, dockworkers, printers, and clerks whose effort generated wealth they did not fully control. The city’s contradictions sharpened his critique.<br><br>
+
+    It is intriguing to consider how Marx might have responded to a world in which value appears increasingly detached from tangible production—where automation, data, and algorithmic systems complicate the measurement of labor time itself. Yet his central questions remain pointed: who controls the means of production? Who benefits from technological change? Does innovation liberate labor—or concentrate power?<br><br>
+
+    In Victorian London, Marx was one radical voice among many in a city that tolerated dissent even as it absorbed it. From cramped rooms in Soho and long days in the library, he produced a theory that would shape global politics for generations. Here, in the capital of industrial capitalism, one of its fiercest critics wrote.
+  `,
+  imageSrc: 'images/marx.jpg',
+  captionHTML: 'Karl Marx in London during his years of exile'
+});
+addHotspot({
+  points: [
+    [9200.873437, 4794.183976],
+    [9091.271886, 4869.137295],
+    [9108.242448, 4896.007353],
+    [9217.136893, 4816.811393]
+  ],
+  title: 'Charles Darwin: Gower Street',
+  bodyHTML: `
+    In 1839, shortly after his return from the voyage of the <span style="font-style: italic;">HMS Beagle</span>, Charles Darwin established his London home at 12 Upper Gower Street (now Gower Street), in Bloomsbury. He lived here until 1842, during the crucial early years in which his evolutionary ideas began to coalesce into a coherent theory.<br><br>
+
+    Unlike Karl Marx’s later years in Soho, Darwin’s London life was comparatively settled and respectable. Newly married to Emma Wedgwood, he occupied a comfortable domestic space near the British Museum and at the heart of London’s intellectual networks. From this address, Darwin worked through his specimens, corresponded with naturalists across Europe, and quietly refined the ideas that would eventually unsettle Victorian theology, science, and social thought alike.<br><br>
+
+    Gower Street placed Darwin within walking distance of the institutions that defined Victorian knowledge: the British Museum’s collections, learned societies, and publishing networks. London gave him access—to conversation, classification, and controversy. Yet it also strained him. The city’s pace, social demands, and his persistent ill health ultimately drove Darwin to retreat to Down House in Kent, where he completed the work that would become <span style="font-style: italic;">On the Origin of Species</span> (1859).<br><br>
+
+    Darwin’s time here represents a transitional moment in Victorian intellectual life. Evolution was not yet public doctrine, but a hypothesis being assembled in rooms filled with notes, specimens, and letters. The upheaval associated with his name was incubated quietly—in domestic space, within the routines of family life, and under the polite surface of metropolitan respectability.<br><br>
+
+    From Gower Street, the natural world was reordered—not by proclamation, but by patient accumulation of evidence. The consequences would reverberate far beyond Bloomsbury.
+  `,
+  imageSrc: 'images/darwin.jpg',
+  captionHTML: ''
+});
+addHotspot({
+  points: [
+    [7805.500000, 4677.500000],
+    [7782.500000, 4689.000000],
+    [7908.000000, 4906.000000],
+    [7932.500000, 4890.500000]
+  ],
+  title: 'Gentlemen’s Clubs of Pall Mall (Overview)',
+  bodyHTML: `
+    By the mid-nineteenth century, Pall Mall had become the most concentrated corridor of elite male sociability in London. Lined with private clubs such as the Athenaeum, the Reform Club, the Carlton Club, and the Travellers Club, the street functioned as a semi-private parliament of influence—where politics, empire, literature, science, and finance overlapped over dinner, brandy, and newspapers.<br><br>
+
+    Membership was selective and often ideological. Some clubs aligned with political parties; others gathered writers, scholars, colonial administrators, military officers, or aristocrats. What united them was exclusion. Women were barred. The working classes were absent. Entry depended on nomination, reputation, and the quiet endorsement of those already inside.<br><br>
+
+    Within their walls, influence moved discreetly. Reading rooms carried dispatches from across the empire; dining rooms hosted conversations that anticipated legislation before it reached Parliament. Alliances formed here, reputations hardened here, and consensus often preceded public policy. These were not simply spaces of leisure—they were networks of consolidation.<br><br>
+
+    The clubs also offered a distinctive model of Victorian masculinity: domesticity without the domestic sphere. They provided comfort, routine, and companionship outside the home—a parallel household of upholstered chairs, restrained debate, and controlled ritual. Authority was reinforced not through spectacle, but through familiarity among men who saw themselves as stewards of national destiny.<br><br>
+
+    To walk Pall Mall in the 1860s was to pass a row of quiet façades behind which power rehearsed itself. Parliament made decisions; Whitehall administered them; but here, in drawing rooms and libraries, the assumptions that shaped both were quietly affirmed.
+  `,
+  imageSrc: 'images/pallmall.jpg',
+  captionHTML: `
+    Drawing Room at the Athenaeum Club — a cultivated interior where influence often preceded public authority.
+  `
+});
+addHotspot({
+  points: [
+    [9059.817978, 5117.695583],
+    [8965.637579, 5184.967296],
+    [9036.272878, 5285.874866],
+    [9128.771484, 5213.557775]
+  ],
+  title: 'Bloomsbury (Overview)',
+    reference: 'Russell Square',
+  bodyHTML: `
+    By the mid-nineteenth century, Bloomsbury had become London’s most concentrated district of ideas. Anchored by Russell Square and extending toward Gower Street, Bedford Square, and the British Museum, the neighborhood functioned as a meeting ground for writers, scientists, reformers, publishers, dissenters, and émigré thinkers.<br><br>
+
+    Unlike the aristocratic polish of Belgravia or the institutional authority of Whitehall, Bloomsbury offered a different kind of power: intellectual proximity. Terraced houses and rented rooms placed novelists near printers, scientists near lecture halls, radicals near reading rooms. Within walking distance stood the British Museum, whose Reading Room served as a gravitational center for scholarship and argument alike.<br><br>
+
+    By the 1860s, figures such as Charles Darwin, John Stuart Mill, and Karl Marx had all worked within this district’s orbit. Here, debates over evolution, political economy, empire, secularism, and reform unfolded not in grand chambers but in studies, coffeehouses, and lecture halls. Ideas that unsettled Victorian certainties were drafted in modest rooms and refined beneath the museum dome.<br><br>
+
+    Bloomsbury was respectable yet restless. Its residents were often professionals, intellectuals, or upwardly mobile outsiders—serious but not aristocratic, ambitious but not ceremonial. The architecture of Russell Square suggests calm order and continuity; the minds surrounding it were often engaged in dismantling inherited assumptions.<br><br>
+
+    If Pall Mall consolidated power, Bloomsbury interrogated it. The square stands as a reminder that Victorian London’s authority did not reside only in Parliament or club, but also in argument—where the future of science, politics, and literature was quietly rewritten.
+  `,
+  imageSrc: 'images/russellsquare.jpg',
+  captionHTML: `
+    J. Greig, <span style="font-style: italic;">Statue of the Duke of Bedford, Russell Square, Bloomsbury, London</span>, c. 1817
+  `
+});
+addHotspot({
+  points: [
+    [8987.135470, 6842.400438],
+    [8808.159799, 6776.696745],
+    [8794.781219, 6804.048508],
+    [8983.270547, 6873.617125]
+  ],
+  title: 'Grub Street (Former Site – Overview)',
+  bodyHTML: `
+    By the nineteenth century, Grub Street was already more legend than address. Renamed Milton Street in 1830 and gradually absorbed into the expanding City, its original name disappeared from maps—but not from memory. For over a century, “Grub Street” had signified the precarious world of professional writing: pamphleteers, translators, hack journalists, political satirists, and poets-for-hire laboring at the edge of subsistence.<br><br>
+
+    Unlike Bloomsbury’s intellectual seriousness or Pall Mall’s cultivated authority, Grub Street represented literary labor without prestige. Writing here was not a calling but a livelihood. Authors were paid by the page, by the polemic, or by the urgency of the news cycle. Deadlines were immediate; patronage uncertain; debt common. A sharp pen might earn a meal—or provoke a lawsuit.<br><br>
+
+    The Victorian expansion of newspapers, magazines, serialized fiction, and cheap print did not eliminate this precarity—it industrialized it. The publishing boom created celebrated novelists, but it also sustained a vast underclass of anonymous writers who filled columns, summarized parliamentary debates, translated foreign texts, and produced copy at relentless speed. Ideas became commodities; controversy became currency.<br><br>
+
+    By 1860, the street’s name had faded, but its ethos endured. “Grub Street writing” remained shorthand for haste, sensationalism, or compromised integrity—yet the insult masked a deeper truth: modern literary culture depended on precisely the kind of wage labor Grub Street embodied.<br><br>
+
+    Its physical disappearance mirrors its transformation. The street dissolved into new urban development, but the condition persisted. Wherever writing became piecework, wherever intellect entered the marketplace under pressure, Grub Street survived—not visible on the map, but embedded in the machinery of print capitalism.
+  `,
+  imageSrc: 'images/grubstreet.jpg',
+  captionHTML: `
+    Grub Street—later renamed Milton Street—became a lasting symbol of precarious literary labor in London.
+  `
+});
+
+  </script>
+</body>
+</html>

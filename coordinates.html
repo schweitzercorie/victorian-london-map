@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Map Coordinate Hunter</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    html, body { margin: 0; height: 100%; }
+    body { display: flex; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    #map { flex: 1; height: 100vh; background: #eee; }
+
+    #panel {
+      width: 360px;
+      height: 100vh;
+      border-left: 1px solid #ddd;
+      padding: 12px;
+      box-sizing: border-box;
+      background: #fafafa;
+      overflow: auto;
+    }
+
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    .hint { font-size: 13px; color: #444; margin: 0 0 10px; line-height: 1.35; }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    button {
+      font-size: 13px;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:active { transform: translateY(1px); }
+
+    #last {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 10px 0;
+      white-space: pre-wrap;
+    }
+
+    #list {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      white-space: pre;
+    }
+
+    .ok { color: #0a6; font-size: 12px; margin-left: 6px; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <aside id="panel">
+    <h1>Coordinate Hunter</h1>
+    <p class="hint">
+      Click the map to record a point.<br>
+      Leaflet uses <b>[Y, X]</b> order in code.<br>
+      (Your alert boxes were showing Y and X — same idea.)
+    </p>
+
+    <div class="row">
+      <button id="copyLast">Copy last point</button>
+      <button id="copyAll">Copy all points</button>
+      <button id="clear">Clear</button>
+      <span id="status" class="ok"></span>
+    </div>
+
+    <div id="last">Last point: (none)</div>
+    <div id="list">(no points yet)</div>
+  </aside>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // ====== EDIT THESE THREE ======
+    const imageUrl = 'mapoflondon-lowres.png';
+    const imageWidth = 11800;
+    const imageHeight = 13800;
+    // =============================
+
+    const bounds = [[0, 0], [imageHeight, imageWidth]];
+
+    const map = L.map('map', {
+      crs: L.CRS.Simple,
+      minZoom: -5,
+      maxZoom: 2,
+      zoomSnap: 0.25
+    });
+
+    L.imageOverlay(imageUrl, bounds).addTo(map);
+    map.setMaxBounds(bounds);
+    map.fitBounds(bounds, { padding: [20, 20] });
+    map.setZoom(map.getBoundsZoom(bounds) - 1);
+
+    // Storage for points + markers
+    const points = [];      // each item: { y, x }
+    const markers = [];     // Leaflet layers
+
+    const lastEl = document.getElementById('last');
+    const listEl = document.getElementById('list');
+    const statusEl = document.getElementById('status');
+
+    function fmt(n) {
+      // Keep it readable but precise enough
+      return Number(n).toFixed(6);
+    }
+
+    function render() {
+      if (points.length === 0) {
+        lastEl.textContent = 'Last point: (none)';
+        listEl.textContent = '(no points yet)';
+        return;
+      }
+
+      const last = points[points.length - 1];
+      lastEl.textContent =
+        `Last point:\nY: ${fmt(last.y)}\nX: ${fmt(last.x)}\n\nLeaflet array form:\n[${fmt(last.y)}, ${fmt(last.x)}]`;
+
+      // One point per line, ready to paste into a polygon array
+      const lines = points.map((p, i) => `${i + 1}. [${fmt(p.y)}, ${fmt(p.x)}]`);
+      listEl.textContent = lines.join('\n');
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        statusEl.textContent = 'Copied ✓';
+        setTimeout(() => statusEl.textContent = '', 900);
+      } catch {
+        statusEl.textContent = 'Copy failed';
+        setTimeout(() => statusEl.textContent = '', 1200);
+      }
+    }
+
+    // Click to capture a point
+    map.on('click', (e) => {
+      const y = e.latlng.lat;
+      const x = e.latlng.lng;
+
+      points.push({ y, x });
+
+      // A small visible marker so you can see your clicks
+      const m = L.circleMarker([y, x], {
+        radius: 5,
+        weight: 2,
+        fillOpacity: 0.3
+      }).addTo(map);
+
+      markers.push(m);
+      render();
+    });
+
+    document.getElementById('copyLast').addEventListener('click', () => {
+      if (!points.length) return;
+      const p = points[points.length - 1];
+      copyText(`[${fmt(p.y)}, ${fmt(p.x)}]`);
+    });
+
+    document.getElementById('copyAll').addEventListener('click', () => {
+      if (!points.length) return;
+      const text = points.map(p => `[${fmt(p.y)}, ${fmt(p.x)}],`).join('\n');
+      copyText(text);
+    });
+
+    document.getElementById('clear').addEventListener('click', () => {
+      points.length = 0;
+      markers.forEach(m => map.removeLayer(m));
+      markers.length = 0;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
