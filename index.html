@@ -7,23 +7,34 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <style>
-    html, body { margin: 0; height: 100%; }
-    body { overflow: hidden; }
-    #app { display: flex; width: 100%; height: 100vh; }
-    #sidebar {
-      width: 360px;
-      background: #fff;
-      border-right: 1px solid rgba(0,0,0,0.15);
-      overflow-y: auto;
-      padding: 12px 10px;
-      box-sizing: border-box;
-    }
-    #map { flex: 1; height: 100vh; background: #eee; }
+  <!-- Google Fonts (match Carrd) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Delicious+Handrawn&display=swap" rel="stylesheet">
 
-    /* ===== LAYOUT: LEFT SIDEBAR + MAP ===== */
-    #app { display: flex; width: 100vw; height: 100vh; }
-    #sidebar {
+
+  <style>
+    /* ===== BRAND / LAYOUT ===== */
+    html, body {
+      margin: 0;
+      height: 100%;
+      color: #474747;
+      font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    body { overflow: hidden; }
+
+    #app{
+      flex: 1;
+      width: 100vw;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* LEFT SIDEBAR */
+    #sidebar{
       width: 360px;
       max-width: 420px;
       min-width: 300px;
@@ -33,57 +44,126 @@
       box-sizing: border-box;
       overflow-y: auto;
     }
-    #map { flex: 1; height: 100vh; background: #eee; }
-
-    /* Sidebar title (older markup sometimes uses .sidebar-title) */
-    .sb-title,
-    .sidebar-title {
-      font-family: Georgia, "Times New Roman", serif;
-      font-weight: 800;
-      font-size: 18px;
-      margin: 2px 0 10px 0;
-      letter-spacing: 0.02em;
+    .sb-title{
+      font-size: 30px;
+      font-weight: 700;
+      text-align: center;
+      margin: 6px 0 14px 0;
+      color: #474747;
     }
-    .sb-section {
-      margin: 14px 0;
-      padding-top: 12px;
-      border-top: 1px solid rgba(0,0,0,0.10);
+
+    /* Stack all sidebar buttons vertically */
+    .zoomRow{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
     }
-    .sb-section:first-of-type { border-top: none; padding-top: 0; }
 
-    /* Buttons in sidebar */
-    #sidebar .pp-btn { width: 100%; margin: 0 0 10px 0; }
-    .sb-row { display: flex; gap: 10px; }
-    .sb-row .pp-btn { flex: 1; margin-bottom: 10px; }
+    .pp-btn, .pp-smallbtn{
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+    }
 
-    /* Themes list hidden by default */
-    #themesContainer { display: none; margin-top: 10px; }
-    .pp-themebtn {
+    /* Theme buttons created in JS (divs) */
+    .pp-themebtn{
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+
       background: #fff;
       border: 1px solid rgba(0,0,0,0.25);
-      border-radius: 10px;
-      padding: 10px 10px;
+      border-radius: 6px;
+      padding: 6px 10px;
       cursor: pointer;
       font-family: Georgia, "Times New Roman", serif;
       font-size: 14px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
       user-select: none;
-      text-align: left;
-      margin: 0 0 8px 0;
+      margin-bottom: 6px;
+      text-align: center;
     }
     .pp-themebtn:hover { background: #f6f6f6; }
 
-    /* ===== POPUP MUST BE OPAQUE + ABOVE HOTSPOTS (NO BLEED-THROUGH) ===== */
-    .leaflet-popup,
-    .leaflet-popup-content-wrapper,
-    .leaflet-popup-content { overflow: visible !important; }
 
-    .leaflet-popup-content-wrapper,
-    .leaflet-popup-tip {
-      background: #fff !important;
+    /* RIGHT COLUMN: HEADER + MAP */
+    #main{
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0; /* critical for Leaflet inside flex */
     }
 
-    /* ===== OFFICIAL POPUP STYLE ===== */
+    /* HEADER */
+    .site-header{
+      background: #fff;
+      padding: 8px 18px;
+      box-sizing: border-box;
+      border-bottom: none;
+      box-shadow: none;
+    }
+
+    .header-inner{
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo{
+      height: 68px;
+      width: auto;
+      display: block;
+    }
+
+    .header-center h1{
+      margin: 0;
+      text-align: center;
+      line-height: 1;
+      font-size: 46px;
+      font-family: "Delicious Handrawn", cursive;
+      font-weight: 400;
+      color: #474747;
+    }
+
+    .home-button{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      background: #fff;
+      border: 2px solid #999;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-family: Arial, sans-serif;
+      border-radius: 4px;
+      color: #474747;
+      white-space: nowrap;
+      transition: background 120ms ease-in-out;
+    }
+
+    .home-icon{
+      width: 18px;
+      height: 18px;
+      fill: #FF4D00;
+      flex: 0 0 auto;
+    }
+
+    .home-button:hover{
+      background: #FFE7D9;
+    }
+
+    /* MAP */
+    #map{
+      flex: 1;
+      min-height: 0; /* critical */
+      width: 100%;
+      background: #eee;
+    }
+
+
+/* ===== OFFICIAL POPUP STYLE ===== */
     .pp-popup {
       font-family: Georgia, "Times New Roman", serif;
       font-size: 1.15em;
@@ -223,10 +303,53 @@
   overflow: hidden;
 }
 
+
+/* ===== SITES LIST (Sidebar) ===== */
+.sitesContainer{
+  margin-top: 10px;
+}
+.sitesHeader{
+  font-weight: 700;
+  text-align: center;
+  margin: 10px 0 8px;
+  color: #474747;
+}
+#sitesList .site-item{
+  width: 100%;
+  display: block;
+  margin: 6px 0;
+  text-align: left;
+}
+
 </style>
 </head>
 
 <body>
+
+    <header class="site-header">
+  <div class="header-inner">
+    
+    <div class="header-left">
+      <img src="images/porcupine.png" alt="Porcupine logo" class="logo">
+    </div>
+
+    <div class="header-center">
+      <h1>The Porcupine Presents … London in 1862</h1>
+    </div>
+
+    <div class="header-right">
+      <a href="https://theporcupinepresents.com" class="home-button" rel="noopener">
+        <svg class="home-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 3l9 8h-3v9a1 1 0 0 1-1 1h-4v-6H11v6H7a1 1 0 0 1-1-1v-9H3l9-8z"></path>
+        </svg>
+        HOME
+      </a>
+    </div>
+
+  </div>
+</header>
+
+    
   <div id="app">
     <div id="sidebar">
     <div class="sidebar-inner">
@@ -246,10 +369,19 @@
         <div class="themesHeader">Themes</div>
         <div id="themeSidebar"></div>
       </div>
+
+      <button id="toggleSitesBtn" class="pp-btn" type="button">Show All Sites</button>
+      <div id="sitesContainer" class="sitesContainer" style="display:none;">
+        <div class="sitesHeader">Sites</div>
+        <div id="sitesList"></div>
+      </div>
+
     </div>
   </div>
-    <div id="map"></div>
+  <div id="main">
+<div id="map"></div>
   </div>
+</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -410,9 +542,9 @@
     "Coroner’s Courts of London (Overview)",
     "Highgate Cemetery",
     "Kensal Green Cemetery",
-    "St. Giles-in-the-fields: Overcrowded Churchyards & the Burial Crisis",
-    "Undertakers & the Funeral Trade",
-    "Jack the Ripper: Mary Ann “Polly” Nichols (Victim #1)",
+    "St. Giles: Overcrowding & the Burial Crisis",
+    "Undertakers & Funeral Trade (Overview)",
+    "Jack the Ripper: Mary Ann Nichols (Victim #1)",
     "Jack the Ripper: Annie Chapman (Victim #2)",
     "Jack the Ripper: Elizabeth Stride (Victim #3)",
     "Jack the Ripper: Catherine Eddowes (Victim #4)",
@@ -423,7 +555,7 @@
     "Casual Ward (Vagrants’ Ward)",
     "Ragged Schools (Overview)",
     "Foundling Hospital",
-    "Industrial Schools of London",
+    "Industrial Schools of London (Overview)",
     "Model Dwellings: Peabody Buildings (Overview)",
     "St. Giles Workhouse"
   ],
@@ -456,22 +588,22 @@
     "Lyceum Theatre",
     "Crystal Palace",
     "Hyde Park",
-    "Canterbury Music Hall (Lambeth)"
+    "Music Halls (Overview)"
   ],
   "Urban Thought & Intellectual Production": [
     "Charles Dickens: Doughty Street",
     "Charles Dickens: Tavistock House",
-    "Karl Marx: Capital, Exile, & the Intellectual Underground of Soho",
+    "Karl Marx: Capital, Exile, & the Underground",
     "Charles Darwin: Gower Street",
     "Bloomsbury (Overview)",
-    "Grub Street (Former Site – Overview)",
+    "Grub Street (Former Site)",
     "Gentlemen’s Clubs of Pall Mall (Overview)",
     "Exeter Hall"
   ],
   "Religious & Moral Authority": [
     "St. Paul’s Cathedral",
     "Westminster Abbey",
-    "Nonconformist Chapels of East London",
+    "Nonconformist Chapels of East London (Overview)",
     "Church Missionary Society",
     "Exeter Hall",
     "Magdalene Asylums of London"
@@ -481,14 +613,14 @@
     "Foundling Hospital",
     "Charity Schools of London (Overview)",
     "Public Schools of England (Overview)",
-    "Industrial Schools of London"
+    "Industrial Schools of London (Overview)"
   ],
   "Gender, Labor, & Female Precarity": [
     "Lying-in Hospitals of London",
     "Magdalene Asylums of London",
-    "Women’s Workrooms & the Garment Trades (Overview)",
+    "Women’s Work & Garment Trades (Overview)",
     "Domestic Service in London (Overview)",
-    "Jack the Ripper: Mary Ann “Polly” Nichols (Victim #1)",
+    "Jack the Ripper: Mary Ann Nichols (Victim #1)",
     "Jack the Ripper: Annie Chapman (Victim #2)",
     "Jack the Ripper: Elizabeth Stride (Victim #3)",
     "Jack the Ripper: Catherine Eddowes (Victim #4)",
@@ -497,8 +629,8 @@
   "Public Voice & Protest": [
     "Hyde Park",
     "Kennington Common: Popular Politics & Protest",
-    "Trafalgar Square: Imperial Monument & Popular Dissent",
-    "Fleet Street: Print, Public Opinion & Political Pressure",
+    "Trafalgar Square: Imperial Monument & Dissent",
+    "Fleet Street: Print, Public Opinion, & Politics",
     "Exeter Hall"
   ],
   "Domestic & Elite Social Order": [
@@ -544,6 +676,157 @@
       allBtn.textContent = isAll ? '✓ All Themes' : 'All Themes';
     }
   }
+
+
+    
+    /* ===== SITES LIST (Sidebar) ===== */
+    const sitesBtn = document.getElementById('toggleSitesBtn');
+    const sitesContainer = document.getElementById('sitesContainer');
+    const sitesList = document.getElementById('sitesList');
+
+    function buildSitesList() {
+      if (!sitesList) return;
+
+      // Collect unique titles in creation order
+      const seen = new Set();
+      const items = [];
+      for (const hs of allHotspots) {
+        const t = hs.__title;
+        if (!t) continue;
+        if (seen.has(t)) continue;
+        seen.add(t);
+        items.push({ title: t, layer: hs, seq: items.length });
+      }
+
+      
+      const desiredOrder = [
+        "Bethlehem Hospital (“Bedlam”)",
+        "Bloomsbury (Overview)",
+        "Bow Street Magistrates’ Court",
+        "British Museum",
+        "Casual Ward (Vagrants’ Ward)",
+        "Charing Cross",
+        "Charity Schools of London (Overview)",
+        "Church Missionary Society",
+        "Coroner’s Courts of London (Overview)",
+        "Covent Garden",
+        "Crystal Palace",
+        "Customs House",
+        "Charles Darwin: Gower Street",
+        "Charles Dickens: Doughty Street",
+        "Charles Dickens: Tavistock House",
+        "Docklands (Overview)",
+        "Domestic Service in London (Overview)",
+        "East India Docks",
+        "East India House",
+        "Euston Station",
+        "Exeter Hall",
+        "Fleet Street: Print, Public Opinion, & Politics",
+        "Foundling Hospital",
+        "General Register Office (Somerset House)",
+        "Gentlemen’s Clubs of Pall Mall (Overview)",
+        "Grub Street (Former Site)",
+        "Highgate Cemetery",
+        "Houses of Parliament (Palace of Westminster)",
+        "Hyde Park",
+        "Industrial Schools of London (Overview)",
+        "Jack the Ripper: Mary Ann Nichols (Victim #1)",
+        "Jack the Ripper: Annie Chapman (Victim #2)",
+        "Jack the Ripper: Elizabeth Stride (Victim #3)",
+        "Jack the Ripper: Catherine Eddowes (Victim #4)",
+        "Jack the Ripper: Mary Jane Kelly (Victim #5)",
+        "Kennington Common: Popular Politics & Protest",
+        "Kensal Green Cemetery",
+        "King’s Cross",
+        "London Library (St. James’s Square)",
+        "Lying-in Hospitals of London",
+        "Lyceum Theatre",
+        "Magdalene Asylums of London",
+        "Marshalsea Prison (Former Site)",
+        "Karl Marx: Capital, Exile, & the Underground",
+        "Model Dwellings: Peabody Buildings (Overview)",
+        "Music Halls (Overview)",
+        "Newgate Prison",
+        "Nonconformist Chapels of East London (Overview)",
+        "Old Bailey: Central Criminal Court",
+        "Overcrowded Churchyards of London (Overview)",
+        "Paddington Station",
+        "Parliament (Palace of Westminster)",
+        "Privy Council",
+        "Public Schools of England (Overview)",
+        "Ragged Schools (Overview)",
+        "Royal College of Surgeons (Hunterian Museum)",
+        "Royal Society",
+        "Scotland Yard",
+        "Somerset House",
+        "St. Giles: Overcrowding & the Burial Crisis",
+        "St. Giles Workhouse",
+        "St. Paul’s Cathedral",
+        "Strand Union Workhouse",
+        "Thames Iron Works",
+        "Trafalgar Square: Imperial Monument & Dissent",
+        "Treasury",
+        "Undertakers & Funeral Trade (Overview)",
+        "Victoria Station",
+        "West India Docks",
+        "Westminster Abbey",
+        "Whitehall",
+        "Women’s Work & Garment Trades (Overview)"
+];
+
+const orderIndex = new Map();
+desiredOrder.forEach((t, i) => orderIndex.set(t, i));
+
+// Sort items by desired order; anything not listed falls to the end, preserving original relative order
+items.sort((a, b) => {
+  const ai = orderIndex.has(a.title) ? orderIndex.get(a.title) : Number.POSITIVE_INFINITY;
+  const bi = orderIndex.has(b.title) ? orderIndex.get(b.title) : Number.POSITIVE_INFINITY;
+  if (ai !== bi) return ai - bi;
+  return (a.seq ?? 0) - (b.seq ?? 0);
+      });
+
+// Clear + rebuild
+      sitesList.innerHTML = '';
+      for (const item of items) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pp-btn site-item';
+        btn.textContent = item.title;
+        btn.onclick = () => {
+          // Ensure hotspots are interactable when opening from list
+          hotspotsShown = true;
+          const hp = map.getPane('hotspots');
+          if (hp) hp.style.pointerEvents = 'auto';
+
+          // Re-apply theme/hotspot styling without relying on removed functions
+          for (const hs of allHotspots) {
+            const themes = hs.__themes || [];
+            const inTheme = (activeTheme === 'All Themes') || themes.includes(activeTheme);
+            const isActive = hotspotsShown && inTheme;
+
+            hs.setStyle(styleForHotspot(isActive));
+            hs.options.interactive = !!isActive;
+          }
+
+          // Zoom to hotspot and open its popup
+          try {
+            const b = item.layer.getBounds();
+            map.fitBounds(b, { padding: [30, 30] });
+          } catch (e) {}
+          item.layer.openPopup();
+        };
+        sitesList.appendChild(btn);
+      }
+    }
+
+    if (sitesBtn && sitesContainer) {
+      sitesBtn.onclick = () => {
+        const isOpen = sitesContainer.style.display !== 'none';
+        sitesContainer.style.display = isOpen ? 'none' : 'block';
+        sitesBtn.textContent = isOpen ? 'Show All Sites' : 'Hide Sites';
+        if (!isOpen) buildSitesList();
+      };
+    }
 
 
     const allHotspots = [];
@@ -1396,7 +1679,7 @@ addNeighborhood({
       }
 
       if (btn) {
-        btn.textContent = neighborhoodOverlayShown ? 'Hide neighborhood overlay' : 'See neighborhood overlay';
+        btn.textContent = neighborhoodOverlayShown ? 'Hide neighborhood overlay' : 'See Neighborhood Overlay';
       }
     };
 
@@ -1797,7 +2080,7 @@ initSidebarUI();
         [8958.000000, 8336.000000],
         [8981.500000, 8324.000000]
       ],
-      title: 'Jack the Ripper: Mary Ann “Polly” Nichols (Victim #1)',
+      title: 'Jack the Ripper: Mary Ann Nichols (Victim #1)',
       bodyHTML: `
         <p>
           In the early hours of 31 August 1888, the body of Mary Ann “Polly” Nichols was found in Buck’s Row, a narrow street along the edge of Whitechapel. Her murder is widely regarded as the first “canonical” killing attributed to the figure later known as Jack the Ripper.
@@ -2665,7 +2948,8 @@ addHotspot({
     [7349.014221, 5728.606829],
     [7391.899938, 5707.584419]
   ],
-  title: 'Canterbury Music Hall (Lambeth)',
+  title: 'Music Halls (Overview)',
+  reference: 'Canterbury Music Hall, Lambeth',
   bodyHTML: `
     Victorian music halls were among the most vibrant—and controversial—institutions of urban popular culture. Emerging from tavern entertainment and pleasure gardens, they offered song, comedy, spectacle, and novelty to a rapidly expanding working and lower-middle-class audience. The Canterbury Music Hall in Lambeth, one of the earliest and most influential venues, helped define the form that would dominate popular entertainment for decades.<br><br>
 
@@ -2769,7 +3053,8 @@ addHotspot({
     [6948.500000, 6402.000000],
     [6996.500000, 6402.500000]
   ],
-  title: 'Nonconformist Chapels of East London',
+  title: 'Nonconformist Chapels of East London (Overview)',
+  reference: 'Metropolitan Tabernacle, Elephant & Castle',
   bodyHTML: `
     By the mid-nineteenth century, East London had become one of the strongest centers of Nonconformist religious life in Britain. Baptist, Congregationalist, Methodist, and other dissenting chapels filled districts where the authority of the Church of England was weakest and its social reach most contested. These chapels were not marginal outposts of belief; they were central institutions in working-class and lower-middle-class life, shaping moral values, social networks, and political attitudes across the East End.<br><br>
 
@@ -2863,7 +3148,7 @@ addHotspot({
     [8408.543704, 9004.739263],
     [8405.180119, 8967.319372]
   ],
-  title: 'Industrial Schools of London',
+  title: 'Industrial Schools of London (Overview)',
   reference: 'Dr. Barnardo’s Homes, Stepney Causeway',
   bodyHTML: `
     By the mid-nineteenth century, industrial schools emerged as one of the most revealing—and coercive—institutions in Victorian London’s response to poverty and juvenile disorder. Unlike charity schools or ragged schools, industrial schools were not primarily voluntary. They were designed to remove children from their homes and neighborhoods before crime occurred, based on the belief that environment itself produced criminality.<br><br>
@@ -2933,7 +3218,7 @@ addHotspot({
     [10079.404881, 9484.470668],
     [10129.858666, 9468.073188]
   ],
-  title: 'Women’s Workrooms & the Garment Trades (Overview)',
+  title: 'Women’s Work & Garment Trades (Overview)',
     reference: 'Floor Cloth Works in the Old Ford area',
   bodyHTML: `
     By the mid-nineteenth century, clothing manufacture had become one of the largest employers of women in London—and one of the most hidden. Sites like this garment works in Stepney anchor a vast, fragmented system of female labor that stretched across the East End, operating in mills, small workshops, back rooms, and private dwellings. Unlike the great factories of heavy industry, garment production thrived on invisibility.<br><br>
@@ -3025,7 +3310,7 @@ addHotspot({
     [7996.670588, 5159.051076],
     [8063.138626, 5142.080513]
   ],
-  title: 'Trafalgar Square: Imperial Monument & Popular Dissent',
+  title: 'Trafalgar Square: Imperial Monument & Dissent',
   bodyHTML: `
     Completed in the 1840s, Trafalgar Square was designed as a monumental declaration of British naval supremacy. Dominated by Nelson’s Column and framed by the National Gallery, it commemorated victory at the Battle of Trafalgar and projected imperial confidence through order, symmetry, and stone.<br><br>
 
@@ -3054,7 +3339,7 @@ addHotspot({
     [8498.716403, 6057.076688],
     [8489.524015, 5981.416262]
   ],
-  title: 'Fleet Street: Print, Public Opinion & Political Pressure',
+  title: 'Fleet Street: Print, Public Opinion, & Politics',
   bodyHTML: `
     By the nineteenth century, Fleet Street had become synonymous with the power of the press. What Parliament debated and Trafalgar Square protested, Fleet Street printed. It was the dense corridor where newspapers, pamphlets, legal reports, and political commentary were produced and distributed at accelerating speed.<br><br>
 
@@ -3156,7 +3441,7 @@ addHotspot({
     [8526.020411, 5079.103588],
     [8556.939796, 5074.941363]
   ],
-  title: 'St. Giles-in-the-fields: Overcrowded Churchyards & the Burial Crisis',
+  title: 'St. Giles: Overcrowding & the Burial Crisis',
   bodyHTML: `
     Before the creation of London’s great garden cemeteries, burial took place within parish churchyards—spaces never designed to absorb the explosive growth of the industrial metropolis. By the early nineteenth century, many of these grounds had become dangerously overcrowded. Few illustrated the crisis more starkly than St. Giles-in-the-Fields.<br><br>
 
@@ -3205,7 +3490,8 @@ addHotspot({
     [9496.663666, 1006.553009],
     [9514.322490, 1022.109593]
   ],
-  title: 'Undertakers & the Funeral Trade',
+  title: 'Undertakers & Funeral Trade (Overview)',
+  reference: 'Kensal Green Cemetary',
   bodyHTML: `
     By the mid-nineteenth century, death in London had become not only a spiritual and social event, but a commercial enterprise. As burial practices shifted from parish churchyards to landscaped suburban cemeteries, a new professional class emerged to manage the process: the undertaker.<br><br>
 
@@ -3229,7 +3515,7 @@ addHotspot({
     [8463.714617, 4936.665993],
     [8549.628091, 4895.300246]
   ],
-  title: 'Karl Marx: Capital, Exile, & the Intellectual Underground of Soho',
+  title: 'Karl Marx: Capital, Exile, & the Underground',
   bodyHTML: `
     In the mid-nineteenth century, London became home to one of the most influential—and controversial—thinkers of the modern age: Karl Marx. Living in relative poverty in Soho after his exile from continental Europe, Marx wrote much of what would become <span style="font-style: italic;">Das Kapital</span> while observing the industrial heart of the British Empire from within its own metropolis.<br><br>
 
@@ -3324,7 +3610,7 @@ addHotspot({
     [8794.781219, 6804.048508],
     [8983.270547, 6873.617125]
   ],
-  title: 'Grub Street (Former Site – Overview)',
+  title: 'Grub Street (Former Site)',
   bodyHTML: `
     By the nineteenth century, Grub Street was already more legend than address. Renamed Milton Street in 1830 and gradually absorbed into the expanding City, its original name disappeared from maps—but not from memory. For over a century, “Grub Street” had signified the precarious world of professional writing: pamphleteers, translators, hack journalists, political satirists, and poets-for-hire laboring at the edge of subsistence.<br><br>
 
