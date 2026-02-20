@@ -189,7 +189,7 @@
       position: relative;
     }
 
-    .pp-figure img {
+    .pp-popup img {
       display: block;
       width: 100%;
       height: auto;
@@ -200,11 +200,11 @@
       transform-origin: center center;
     }
 
-    .pp-figure img:hover { transform: scale(2.8); z-index: 10; }
+    .pp-popup img:hover { transform: scale(2.8); z-index: 10; }
 
     @media (hover: none) {
       .pp-figure img:hover { transform: none; z-index: 1; }
-      .pp-figure img { cursor: default; }
+      .pp-popup img { cursor: default; }
     }
 
     .pp-caption {
@@ -1998,7 +1998,7 @@ initSidebarUI();
         </p>
       `,
       imageSrc: 'images/dickens.jpg',
-      captionHTML: `Daniel Maclise, <span style="font-style: italic;">Portrait of Charles Dickens</span>, 1839`
+      captionHTML: 'Daniel Maclise, <span style="font-style: italic;">Portrait of Charles Dickens</span>, 1839'
     });
 
     addHotspot({
@@ -2009,19 +2009,30 @@ initSidebarUI();
         [8959.042918, 5178.142959]
       ],
       title: 'British Museum',
-      bodyHTML: `
-        <p>
-          Opened in 1759, the British Museum was one of the defining intellectual institutions of Victorian London. Conceived as a universal museum, it sought to collect, classify, and display the material culture of the world within a single public space, offering knowledge as a civic good accessible beyond elite circles.
-        </p>
-        <p>
-          By the 19th century, the Museum had become both a symbol of Victorian confidence in scholarship and an embodiment of imperial reach. Its collections expanded rapidly through exploration, excavation, purchase, and colonial acquisition, transforming distant civilizations into objects of study within the imperial capital.
-        </p>
-        <p>
-          For Victorians, the British Museum represented order imposed upon global history—a place where the past could be arranged, interpreted, and made legible. It also raised enduring questions about ownership, authority, and the ethics of collecting that continue to shape debates about museums today.
-        </p>
-      `,
-      imageSrc: 'images/britishmuseum.jpg',
-      captionHTML: `South-facing front façade of the British Museum<br>The British Museum Reading Room`
+  bodyHTML: `
+    <p>
+      Opened in 1759, the British Museum was one of the defining intellectual institutions of Victorian London. Conceived as a universal museum, it sought to collect, classify, and display the material culture of the world within a single public space, offering knowledge as a civic good accessible beyond elite circles.
+    </p>
+    <p>
+      By the 19th century, the Museum had become both a symbol of Victorian confidence in scholarship and an embodiment of imperial reach. Its collections expanded rapidly through exploration, excavation, purchase, and colonial acquisition, transforming distant civilizations into objects of study within the imperial capital.
+    </p>
+    <p>
+      For Victorians, the British Museum represented order imposed upon global history—a place where the past could be arranged, interpreted, and made legible. It also raised enduring questions about ownership, authority, and the ethics of collecting that continue to shape debates about museums today.
+    </p>
+
+    <figure style="margin: 0.75em 0 0; text-align:center;">
+  <img
+    src="images/readingroom.jpg"
+    alt="The British Museum Reading Room"
+    style="max-width: 320px; width: 100%; height: auto; border-radius: 10px; display: inline-block;"
+  />
+  <figcaption style="font-size: 0.9em; opacity: 0.85; margin-top: 0.35em;">
+    The British Museum Reading Room
+  </figcaption>
+</figure>
+  `,
+  imageSrc: 'images/britishmuseum.jpg',
+  captionHTML: 'South-facing front façade of the British Museum'
     });
 
     addHotspot({
@@ -3068,7 +3079,7 @@ addHotspot({
 
     For Victorian London, East End Nonconformism represented an alternative moral order—one grounded in conscience rather than ceremony, persuasion rather than hierarchy, and voluntary commitment rather than inherited authority. It revealed a city in which religious power was increasingly decentralized, mobile, and responsive to the pressures of modern urban life.
   `,
-  imageSrc: 'images/spurgeon.png',
+  imageSrc: 'images/spurgeon.jpg',
   captionHTML: 'Charles Spurgeon preaching to a packed congregation at the Metropolitan Tabernacle'
 });
 addHotspot({
