@@ -564,18 +564,23 @@
     "Royal Society",
     "Royal College of Surgeons (Hunterian Museum)",
     "British Museum",
+    "Natural History Museum (Future Site)",
     "London Library (St. James’s Square)",
     "General Register Office (Somerset House)",
-    "Charles Darwin: Gower Street"
-  ],
+    "Charles Darwin: Gower Street",
+    "South Kensington Museum (Later the Victoria and Albert Museum)",
+    "National Gallery",
+    "National Schools (Overview)"
+],
   "Empire, Trade, & Industrial Power": [
     "Docklands (Overview)",
     "West India Docks",
     "East India Docks",
     "Thames Iron Works",
     "East India House",
-    "Customs House"
-  ],
+    "Customs House",
+    "South Kensington Museum (Later the Victoria and Albert Museum)"
+],
   "Rail, Mobility, & Modern Time": [
     "Paddington Station",
     "King’s Cross",
@@ -588,8 +593,11 @@
     "Lyceum Theatre",
     "Crystal Palace",
     "Hyde Park",
-    "Music Halls (Overview)"
-  ],
+    "Music Halls (Overview)",
+    "South Kensington Museum (Later the Victoria and Albert Museum)",
+    "National Gallery",
+    "Theatre Royal, Drury Lane"
+],
   "Urban Thought & Intellectual Production": [
     "Charles Dickens: Doughty Street",
     "Charles Dickens: Tavistock House",
@@ -631,8 +639,10 @@
     "Kennington Common: Popular Politics & Protest",
     "Trafalgar Square: Imperial Monument & Dissent",
     "Fleet Street: Print, Public Opinion, & Politics",
-    "Exeter Hall"
-  ],
+    "Exeter Hall",
+    "National Gallery",
+    "Theatre Royal, Drury Lane"
+],
   "Domestic & Elite Social Order": [
     "Domestic Service in London (Overview)",
     "Gentlemen’s Clubs of Pall Mall (Overview)",
@@ -746,6 +756,9 @@
         "Karl Marx: Capital, Exile, & the Underground",
         "Model Dwellings: Peabody Buildings (Overview)",
         "Music Halls (Overview)",
+        "National Gallery",
+        "National Schools (Overview)",
+        "Natural History Museum (Future Site)",
         "Newgate Prison",
         "Nonconformist Chapels of East London (Overview)",
         "Old Bailey: Central Criminal Court",
@@ -759,11 +772,13 @@
         "Royal Society",
         "Scotland Yard",
         "Somerset House",
+        "South Kensington Museum (Later the Victoria and Albert Museum)",
         "St. Giles: Overcrowding & the Burial Crisis",
         "St. Giles Workhouse",
         "St. Paul’s Cathedral",
         "Strand Union Workhouse",
         "Thames Iron Works",
+        "Theatre Royal, Drury Lane",
         "Trafalgar Square: Imperial Monument & Dissent",
         "Treasury",
         "Undertakers & Funeral Trade (Overview)",
@@ -2035,7 +2050,75 @@ initSidebarUI();
   captionHTML: 'South-facing front façade of the British Museum'
     });
 
+
     addHotspot({
+      points: [
+        [7411.661004, 2690.027632],
+        [7073.620645, 2737.117832],
+        [7099.688434, 2967.523449],
+        [7441.933275, 2922.955939]
+      ],
+      title: 'Natural History Museum (Future Site)',
+      bodyHTML: `
+        <p>
+          In 1862, the Natural History Museum did not yet exist as a separate institution—but the idea behind it already fit the Victorian mind like a glove. Victorian Britain was obsessed with collecting: specimens, fossils, bones, plants, insects, “curiosities” from across the world, and the new stories science was beginning to tell about deep time and evolution. What remained unsettled was how to house—and <em>interpret</em>—that growing mass of nature.
+        </p>
+        <p>
+          The natural history collections were then part of the British Museum, where they drew crowds and controversy in equal measure. As the century advanced, the pressure to create a dedicated home in South Kensington reflected a distinctly Victorian faith that nature could be made legible through order: taxonomy, glass cases, labeled drawers, and grand galleries where the public could look at the world and be taught how to name it.
+        </p>
+        <p>
+          The museum-to-come also reveals a cultural ambition. This was not simply storage. It was spectacle harnessed to education: a civic theater of science where “progress” could be seen, walked through, and absorbed—especially by a rising middle class eager for self-improvement and authority through knowledge.
+        </p>
+
+        <figure class="pp-figure" style="max-width:300px;">
+          <img src="images/naturalhistory.jpg" alt="">
+          <figcaption class="pp-caption">An early photograph of a main exhibition hall</figcaption>
+        </figure>
+
+        <figure class="pp-figure" style="max-width:300px;">
+          <img src="images/comicnews.jpg" alt="">
+          <figcaption class="pp-caption"><span style="font-style: italic;">The Comic News</span> reporting on plans to move the British Museum’s natural history collection to a new home in South Kensington on the old grounds of the International Exhibition, 1863</figcaption>
+        </figure>
+      `,
+      imageSrc: '',
+      captionHTML: ''
+    });
+
+    
+
+    addHotspot({
+      points: [
+        [7240.118135, 2969.205242],
+        [7103.892916, 2986.864067],
+        [7123.233534, 3086.089844],
+        [7148.460426, 3144.952593],
+        [7258.617856, 3086.930740]
+      ],
+      title: 'South Kensington Museum (Later the Victoria and Albert Museum)',
+      bodyHTML: `
+        <p>
+  Founded in 1852 in the wake of the Great Exhibition of 1851, the South Kensington Museum was conceived as a bold experiment: could art, design, and industry be brought together under one roof to elevate public taste and improve British manufacturing?
+</p>
+<p>
+  Prince Albert and reformers of the era believed the answer was yes.
+</p>
+<p>
+  The museum collected decorative arts, sculpture, textiles, metalwork, ceramics, and architectural casts from across Europe and the expanding British Empire. Unlike elite private collections, this institution was meant to be educational—even practical. Manufacturers were encouraged to study its holdings. Working people were admitted at night, illuminated by gaslight, so they too could learn from “good design.”
+</p>
+<p>
+  Many of its objects arrived through imperial networks of trade, diplomacy, purchase, and, at times, unequal power. To Victorian visitors, these collections represented global reach and cultural prestige; to modern observers, they also raise questions about ownership, displacement, and the legacy of empire.
+</p>
+<p>
+  The museum eventually grew into what we now know as the Victoria and Albert Museum, but in its early decades it symbolized something distinctively Victorian: the conviction that culture, industry, and moral improvement were intertwined.
+</p>
+<p>
+  To walk its halls in the 1860s was to step into a cathedral of craftsmanship—part school, part imperial showroom, part civic optimism.
+</p>
+      `,
+      imageSrc: 'images/southkensington.jpg',
+      captionHTML: `The Loan Collection on display in the South Kensington Museum (now the Victoria and Albert Museum), 1862. The exhibition featured over 8,000 objects from approximately 450 contributors, including jewelry, ceramics, textiles, metalwork, and decorative arts.`
+    });
+addHotspot({
       points: [
         [8260.125487, 5528.893930],
         [8172.672260, 5572.620544],
@@ -3338,6 +3421,98 @@ addHotspot({
   imageSrc: 'images/trafalgar.jpg',
   captionHTML: 'Public meeting in Trafalgar Square in commemoration of Bloody Sunday, 1892, illustration from <span style="font-style: italic;">John Cassell’s Illustrated History of England</span>'
 });
+
+
+addHotspot({
+  points: [
+    [8059.256618, 5036.292132],
+    [8046.769944, 5040.157055],
+    [8041.715813, 5048.778807],
+    [8067.878370, 5140.942358],
+    [8088.094891, 5135.888228]
+  ],
+  title: 'National Gallery',
+  bodyHTML: `
+    <p>
+  Founded in 1824 and housed in its Trafalgar Square building from 1838, the National Gallery became one of Britain’s most visible civic statements about culture. Unlike private aristocratic collections, it was explicitly national in purpose: its paintings belonged—at least in principle—to the public.
+</p>
+<p>
+  Victorian Londoners could stand before Raphael, Titian, and Rembrandt without invitation or inherited privilege. Placed in the symbolic heart of the capital, the Gallery helped make Trafalgar Square a crossroads of power, commerce, and public life.
+</p>
+<p>
+  As the nineteenth century progressed, the collection expanded through purchase and donation, shaped by a society whose wealth and influence were increasingly global. To Victorian visitors, the museum represented refinement and public education; to modern observers, it also reflects the cultural confidence—and imperial framework—within which national collecting took place.
+</p>
+<p>
+  Inside, the experience offered a quiet counterpoint to the city outside: a sanctuary of European painting in the middle of a rapidly modernizing world.
+</p>
+
+<figure class="pp-figure" style="max-width:300px;">
+  <img src="images/workingmen.jpg" alt="">
+  <figcaption class="pp-caption"><i>A Party of Working Men at the National Gallery</i>, London, 1870.</figcaption>
+</figure>
+  `,
+  imageSrc: 'images/nationalgalleryext.jpg',
+  captionHTML: `Thomas Allom, <i>The National Gallery - Charing Cross</i>, 1836.`
+});
+
+addHotspot({
+  points: [
+    [8375.883013, 5449.244303],
+    [8363.099036, 5473.623049],
+    [8413.937640, 5502.461321],
+    [8426.424315, 5478.974481]
+  ],
+  title: 'Theatre Royal, Drury Lane',
+  bodyHTML: `
+    <p>
+  Few stages in London carried the prestige—or volatility—of the Theatre Royal, Drury Lane. Rebuilt multiple times after fire and financial collapse, the theatre Victorians knew dated from 1812 and stood as one of the grandest playhouses in Europe.
+</p>
+<p>
+  Drury Lane was spectacle and risk in equal measure. Shakespearean revivals shared the stage with melodrama, opera, pantomime, and vast scenic productions featuring elaborate machinery and visual effects. Managers gambled fortunes on ambitious stagings; success could crown a performer with national fame, while failure could destroy a career overnight.
+</p>
+<p>
+  Its audiences reflected London’s social range. Private boxes catered to elites, but the galleries filled with louder, less restrained spectators. Applause, heckling, cheering—and occasionally outright disorder—were part of the culture.
+</p>
+<p>
+  In a city remade by industry and empire, Drury Lane offered shared narrative and emotional release. It was not merely a venue for performance—it was one of the beating hearts of Victorian public life.
+</p>
+  `,
+  imageSrc: 'images/nationaltheatre.jpg',
+  captionHTML: `Thomas Rowlandson, <i>Drury Lane Theatre</i>, 1808.`
+});
+
+addHotspot({
+  points: [
+    [8488.250000, 5293.500000],
+    [8471.250000, 5310.250000],
+    [8501.500000, 5339.500000],
+    [8517.000000, 5324.500000]
+  ],
+  title: 'National Schools (Overview)',
+  reference: 'St. Martin’s National School',
+  bodyHTML: `
+
+<p>
+  In Victorian Britain, “National Schools” formed a vast educational network created by the National Society for Promoting the Education of the Poor in the Principles of the Established Church. Their purpose was straightforward but ambitious: to teach working-class children basic literacy and numeracy while shaping their moral and religious formation within the Church of England.
+</p>
+<p>
+  By the mid-nineteenth century, National Schools were embedded in parishes across London. Funding came from subscriptions, donations, small weekly payments from families, and increasingly from government grants. For many children, this was the only formal education they would ever receive.
+</p>
+<p>
+  Instruction emphasized reading, writing, and arithmetic, but also catechism, Scripture, discipline, and habits Victorians associated with respectability: punctuality, obedience, and cleanliness. Classrooms were often crowded; teachers underpaid; resources uneven. Yet these schools significantly expanded literacy in an era when universal education had not yet been established.
+</p>
+<p>
+  National Schools reveal a defining Victorian tension: a belief that education could improve society, paired with anxiety about educating the poor without the “right” religious and moral framework. They were philanthropic and paternalistic at once—both engines of uplift and instruments of social formation.
+</p>
+<p>
+  St. Martin’s National School serves here as an anchor point for understanding this broader educational movement within the urban fabric of London.
+</p>
+  `,
+  imageSrc: 'images/nationalschool.jpg',
+  captionHTML: `School interior, 1853.`
+});
+
+
 addHotspot({
   points: [
     [8466.189491, 5900.806089],
